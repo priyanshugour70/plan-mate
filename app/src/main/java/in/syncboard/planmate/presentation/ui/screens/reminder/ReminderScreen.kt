@@ -1,3 +1,5 @@
+// Path: app/src/main/java/in/syncboard/planmate/presentation/ui/screens/reminder/ReminderScreen.kt
+
 package `in`.syncboard.planmate.presentation.ui.screens.reminder
 
 import androidx.compose.foundation.background
@@ -12,92 +14,39 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import `in`.syncboard.planmate.presentation.ui.components.LoadingState
+import `in`.syncboard.planmate.presentation.viewmodel.ReminderViewModel
+import `in`.syncboard.planmate.presentation.viewmodel.ReminderItem
+import `in`.syncboard.planmate.presentation.viewmodel.NoteItem
+import `in`.syncboard.planmate.domain.entity.ReminderPriority
+import `in`.syncboard.planmate.domain.entity.ReminderCategory
 import `in`.syncboard.planmate.ui.theme.*
 
 /**
- * Reminder Data Class
- */
-data class Reminder(
-    val id: String,
-    val title: String,
-    val time: String,
-    val priority: ReminderPriority,
-    val isCompleted: Boolean = false,
-    val category: ReminderCategory = ReminderCategory.GENERAL
-)
-
-/**
- * Note Data Class
- */
-data class Note(
-    val id: String,
-    val title: String,
-    val content: String,
-    val createdAt: String,
-    val color: Color
-)
-
-/**
- * Reminder Priority Enum
- */
-enum class ReminderPriority(val displayName: String, val color: Color) {
-    HIGH("High", Error500),
-    MEDIUM("Medium", Warning500),
-    LOW("Low", Primary500)
-}
-
-/**
- * Reminder Category Enum
- */
-enum class ReminderCategory(val displayName: String, val icon: ImageVector) {
-    BILLS("Bills", Icons.Default.Receipt),
-    SHOPPING("Shopping", Icons.Default.ShoppingBag),
-    HEALTH("Health", Icons.Default.LocalHospital),
-    WORK("Work", Icons.Default.Work),
-    GENERAL("General", Icons.Default.Star)
-}
-
-/**
- * Reminder Screen
- * Shows reminders, tasks, and notes for better life organization
+ * Reminder Screen - Updated with real data
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReminderScreen(
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    viewModel: ReminderViewModel = hiltViewModel()
 ) {
+    val uiState = viewModel.uiState
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Reminders", "Notes")
+    var showAddReminderDialog by remember { mutableStateOf(false) }
+    var showAddNoteDialog by remember { mutableStateOf(false) }
 
-    // Mock data for reminders
-    val reminders = remember {
-        mutableStateListOf(
-            Reminder("1", "Pay electricity bill", "2:00 PM", ReminderPriority.HIGH, false, ReminderCategory.BILLS),
-            Reminder("2", "Buy groceries", "4:30 PM", ReminderPriority.MEDIUM, false, ReminderCategory.SHOPPING),
-            Reminder("3", "Call insurance agent", "6:00 PM", ReminderPriority.LOW, true, ReminderCategory.GENERAL),
-            Reminder("4", "Doctor appointment", "10:00 AM", ReminderPriority.HIGH, false, ReminderCategory.HEALTH),
-            Reminder("5", "Submit monthly report", "5:00 PM", ReminderPriority.MEDIUM, false, ReminderCategory.WORK)
-        )
+    // Show loading state
+    if (uiState.isLoading) {
+        LoadingState(message = "Loading reminders...")
+        return
     }
-
-    // Mock data for notes
-    val notes = remember {
-        listOf(
-            Note("1", "Budget Review Meeting", "Discuss Q2 budget allocation and expense optimization strategies for better financial management...", "2 hours ago", Warning100),
-            Note("2", "Investment Ideas", "Research mutual funds and SIP options for long-term savings. Consider ELSS for tax benefits...", "1 day ago", Primary100),
-            Note("3", "Shopping List", "Milk, Bread, Vegetables, Cleaning supplies, Coffee beans, Fruits for the week...", "2 days ago", Tertiary100),
-            Note("4", "Travel Planning", "Plan summer vacation budget. Research destinations, accommodation, and activities within budget...", "3 days ago", Secondary100)
-        )
-    }
-
-    val pendingReminders = reminders.count { !it.isCompleted }
-    val completedReminders = reminders.count { it.isCompleted }
 
     Scaffold(
         topBar = {
@@ -114,7 +63,15 @@ fun ReminderScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* Handle add */ }) {
+                    IconButton(
+                        onClick = {
+                            if (selectedTab == 0) {
+                                showAddReminderDialog = true
+                            } else {
+                                showAddNoteDialog = true
+                            }
+                        }
+                    ) {
                         Icon(Icons.Default.Add, contentDescription = "Add")
                     }
                 }
@@ -122,7 +79,13 @@ fun ReminderScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { /* Handle add reminder/note */ },
+                onClick = {
+                    if (selectedTab == 0) {
+                        showAddReminderDialog = true
+                    } else {
+                        showAddNoteDialog = true
+                    }
+                },
                 containerColor = Primary500,
                 contentColor = Color.White
             ) {
@@ -155,7 +118,7 @@ fun ReminderScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = pendingReminders.toString(),
+                            text = uiState.pendingReminders.toString(),
                             style = MaterialTheme.typography.amountMedium,
                             color = Warning700,
                             fontWeight = FontWeight.Bold
@@ -181,7 +144,7 @@ fun ReminderScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = completedReminders.toString(),
+                            text = uiState.completedReminders.toString(),
                             style = MaterialTheme.typography.amountMedium,
                             color = Tertiary700,
                             fontWeight = FontWeight.Bold
@@ -207,7 +170,7 @@ fun ReminderScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = notes.size.toString(),
+                            text = uiState.totalNotes.toString(),
                             style = MaterialTheme.typography.amountMedium,
                             color = Primary700,
                             fontWeight = FontWeight.Bold
@@ -246,84 +209,104 @@ fun ReminderScreen(
             when (selectedTab) {
                 0 -> {
                     // Reminders Tab
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 20.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        item {
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
+                    if (uiState.reminders.isEmpty()) {
+                        EmptyRemindersContent()
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 20.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            item {
+                                Spacer(modifier = Modifier.height(16.dp))
+                            }
 
-                        // Today's Reminders Header
-                        item {
-                            Text(
-                                text = "Today's Reminders",
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
+                            items(uiState.reminders) { reminder ->
+                                ReminderCard(
+                                    reminder = reminder,
+                                    onToggleComplete = { viewModel.toggleReminderCompletion(reminder.id) },
+                                    onDelete = { viewModel.deleteReminder(reminder.id) }
+                                )
+                            }
 
-                        // Reminders List
-                        items(reminders) { reminder ->
-                            ReminderCard(
-                                reminder = reminder,
-                                onToggleComplete = { reminderId ->
-                                    val index = reminders.indexOfFirst { it.id == reminderId }
-                                    if (index != -1) {
-                                        reminders[index] = reminders[index].copy(isCompleted = !reminders[index].isCompleted)
-                                    }
-                                },
-                                onEdit = { /* Handle edit */ },
-                                onDelete = { /* Handle delete */ }
-                            )
-                        }
-
-                        item {
-                            Spacer(modifier = Modifier.height(80.dp)) // Space for FAB
+                            item {
+                                Spacer(modifier = Modifier.height(80.dp))
+                            }
                         }
                     }
                 }
                 1 -> {
                     // Notes Tab
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 20.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        item {
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
+                    if (uiState.notes.isEmpty()) {
+                        EmptyNotesContent()
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 20.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            item {
+                                Spacer(modifier = Modifier.height(16.dp))
+                            }
 
-                        // Quick Notes Header
-                        item {
-                            Text(
-                                text = "Quick Notes",
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
+                            items(uiState.notes) { note ->
+                                NoteCard(
+                                    note = note,
+                                    onPin = { viewModel.pinNote(note.id) },
+                                    onDelete = { viewModel.deleteNote(note.id) }
+                                )
+                            }
 
-                        // Notes List
-                        items(notes) { note ->
-                            NoteCard(
-                                note = note,
-                                onEdit = { /* Handle edit */ },
-                                onDelete = { /* Handle delete */ }
-                            )
-                        }
-
-                        item {
-                            Spacer(modifier = Modifier.height(80.dp)) // Space for FAB
+                            item {
+                                Spacer(modifier = Modifier.height(80.dp))
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    // Add Reminder Dialog
+    if (showAddReminderDialog) {
+        AddReminderDialog(
+            uiState = viewModel.addReminderState,
+            onDismiss = {
+                showAddReminderDialog = false
+                viewModel.resetReminderForm()
+            },
+            onTitleChanged = { viewModel.updateReminderTitle(it) },
+            onDescriptionChanged = { viewModel.updateReminderDescription(it) },
+            onTimeChanged = { viewModel.updateReminderTime(it) },
+            onPriorityChanged = { viewModel.updateReminderPriority(it) },
+            onCategoryChanged = { viewModel.updateReminderCategory(it) },
+            onSave = {
+                viewModel.saveReminder {
+                    showAddReminderDialog = false
+                }
+            }
+        )
+    }
+
+    // Add Note Dialog
+    if (showAddNoteDialog) {
+        AddNoteDialog(
+            uiState = viewModel.addNoteState,
+            onDismiss = {
+                showAddNoteDialog = false
+                viewModel.resetNoteForm()
+            },
+            onTitleChanged = { viewModel.updateNoteTitle(it) },
+            onContentChanged = { viewModel.updateNoteContent(it) },
+            onColorChanged = { viewModel.updateNoteColor(it) },
+            onSave = {
+                viewModel.saveNote {
+                    showAddNoteDialog = false
+                }
+            }
+        )
     }
 }
 
@@ -332,12 +315,13 @@ fun ReminderScreen(
  */
 @Composable
 private fun ReminderCard(
-    reminder: Reminder,
-    onToggleComplete: (String) -> Unit,
-    onEdit: () -> Unit,
+    reminder: ReminderItem,
+    onToggleComplete: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = CategoryCardShape,
@@ -354,7 +338,7 @@ private fun ReminderCard(
             // Completion Checkbox
             Checkbox(
                 checked = reminder.isCompleted,
-                onCheckedChange = { onToggleComplete(reminder.id) },
+                onCheckedChange = { onToggleComplete() },
                 colors = CheckboxDefaults.colors(
                     checkedColor = Tertiary500
                 )
@@ -399,12 +383,12 @@ private fun ReminderCard(
                     // Priority Badge
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = reminder.priority.color.copy(alpha = 0.1f)
+                        color = getPriorityColor(reminder.priority).copy(alpha = 0.1f)
                     ) {
                         Text(
-                            text = reminder.priority.displayName,
+                            text = reminder.priority.name,
                             style = MaterialTheme.typography.labelSmall,
-                            color = reminder.priority.color,
+                            color = getPriorityColor(reminder.priority),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             fontWeight = FontWeight.Medium
                         )
@@ -412,23 +396,47 @@ private fun ReminderCard(
 
                     // Category Icon
                     Icon(
-                        reminder.category.icon,
-                        contentDescription = reminder.category.displayName,
+                        getCategoryIcon(reminder.category),
+                        contentDescription = reminder.category.name,
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
-            // Actions
-            IconButton(onClick = { /* Handle more actions */ }) {
+            // Delete Button
+            IconButton(onClick = { showDeleteDialog = true }) {
                 Icon(
-                    Icons.Default.MoreVert,
-                    contentDescription = "More",
+                    Icons.Default.Delete,
+                    contentDescription = "Delete",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
+    }
+
+    // Delete Confirmation Dialog
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Reminder") },
+            text = { Text("Are you sure you want to delete this reminder?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDelete()
+                        showDeleteDialog = false
+                    }
+                ) {
+                    Text("Delete", color = Error500)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
@@ -437,18 +445,19 @@ private fun ReminderCard(
  */
 @Composable
 private fun NoteCard(
-    note: Note,
-    onEdit: () -> Unit,
+    note: NoteItem,
+    onPin: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = CategoryCardShape,
         colors = CardDefaults.cardColors(
             containerColor = note.color
-        ),
-        onClick = onEdit
+        )
     ) {
         Column(
             modifier = Modifier
@@ -469,16 +478,30 @@ private fun NoteCard(
                     modifier = Modifier.weight(1f)
                 )
 
-                IconButton(
-                    onClick = onEdit,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Edit,
-                        contentDescription = "Edit",
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Row {
+                    IconButton(
+                        onClick = onPin,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            if (note.isPinned) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = "Pin",
+                            modifier = Modifier.size(16.dp),
+                            tint = if (note.isPinned) Warning500 else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { showDeleteDialog = true },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Delete",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
@@ -486,7 +509,7 @@ private fun NoteCard(
             Text(
                 text = note.content,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(vertical = 8.dp),
                 maxLines = 3
             )
@@ -498,5 +521,239 @@ private fun NoteCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
         }
+    }
+
+    // Delete Confirmation Dialog
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Note") },
+            text = { Text("Are you sure you want to delete this note?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDelete()
+                        showDeleteDialog = false
+                    }
+                ) {
+                    Text("Delete", color = Error500)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+// Helper functions and dialogs
+@Composable
+private fun EmptyRemindersContent() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.NotificationsNone,
+                contentDescription = "No reminders",
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "No reminders yet",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Create your first reminder to stay organized",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyNotesContent() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Note,
+                contentDescription = "No notes",
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "No notes yet",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Create your first note to capture your thoughts",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+    }
+}
+
+// Add Reminder Dialog
+@Composable
+private fun AddReminderDialog(
+    uiState: `in`.syncboard.planmate.presentation.viewmodel.AddReminderUiState,
+    onDismiss: () -> Unit,
+    onTitleChanged: (String) -> Unit,
+    onDescriptionChanged: (String) -> Unit,
+    onTimeChanged: (String) -> Unit,
+    onPriorityChanged: (ReminderPriority) -> Unit,
+    onCategoryChanged: (ReminderCategory) -> Unit,
+    onSave: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Reminder") },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                OutlinedTextField(
+                    value = uiState.title,
+                    onValueChange = onTitleChanged,
+                    label = { Text("Title") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = uiState.description,
+                    onValueChange = onDescriptionChanged,
+                    label = { Text("Description (Optional)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = uiState.selectedTime,
+                    onValueChange = onTimeChanged,
+                    label = { Text("Time (HH:MM)") },
+                    placeholder = { Text("14:30") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (uiState.errorMessage != null) {
+                    Text(
+                        text = uiState.errorMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onSave,
+                enabled = uiState.isValidForm && !uiState.isSaving
+            ) {
+                Text(if (uiState.isSaving) "Saving..." else "Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+// Add Note Dialog
+@Composable
+private fun AddNoteDialog(
+    uiState: `in`.syncboard.planmate.presentation.viewmodel.AddNoteUiState,
+    onDismiss: () -> Unit,
+    onTitleChanged: (String) -> Unit,
+    onContentChanged: (String) -> Unit,
+    onColorChanged: (androidx.compose.ui.graphics.Color) -> Unit,
+    onSave: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Note") },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                OutlinedTextField(
+                    value = uiState.title,
+                    onValueChange = onTitleChanged,
+                    label = { Text("Title") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = uiState.content,
+                    onValueChange = onContentChanged,
+                    label = { Text("Content") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3
+                )
+
+                if (uiState.errorMessage != null) {
+                    Text(
+                        text = uiState.errorMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onSave,
+                enabled = uiState.isValidForm && !uiState.isSaving
+            ) {
+                Text(if (uiState.isSaving) "Saving..." else "Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+private fun getPriorityColor(priority: ReminderPriority): androidx.compose.ui.graphics.Color {
+    return when (priority) {
+        ReminderPriority.HIGH -> Error500
+        ReminderPriority.MEDIUM -> Warning500
+        ReminderPriority.LOW -> Primary500
+    }
+}
+
+private fun getCategoryIcon(category: ReminderCategory): androidx.compose.ui.graphics.vector.ImageVector {
+    return when (category) {
+        ReminderCategory.BILLS -> Icons.Default.Receipt
+        ReminderCategory.SHOPPING -> Icons.Default.ShoppingBag
+        ReminderCategory.HEALTH -> Icons.Default.LocalHospital
+        ReminderCategory.WORK -> Icons.Default.Work
+        ReminderCategory.PERSONAL -> Icons.Default.Person
+        ReminderCategory.FINANCIAL -> Icons.Default.AccountBalance
+        ReminderCategory.GENERAL -> Icons.Default.Star
     }
 }

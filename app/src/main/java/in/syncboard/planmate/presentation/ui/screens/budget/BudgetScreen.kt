@@ -1,3 +1,5 @@
+// Path: app/src/main/java/in/syncboard/planmate/presentation/ui/screens/budget/BudgetScreen.kt
+
 package `in`.syncboard.planmate.presentation.ui.screens.budget
 
 import androidx.compose.foundation.background
@@ -16,45 +18,33 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import `in`.syncboard.planmate.presentation.ui.components.LoadingState
+import `in`.syncboard.planmate.presentation.viewmodel.BudgetViewModel
+import `in`.syncboard.planmate.presentation.viewmodel.BudgetCategoryItem
 import `in`.syncboard.planmate.ui.theme.*
 
 /**
- * Budget Category Data Class
- */
-data class BudgetCategory(
-    val name: String,
-    val icon: String,
-    val budget: Double,
-    val spent: Double,
-    val color: Color
-)
-
-/**
- * Budget Screen
- * Shows monthly budget overview and category-wise budget allocation
+ * Budget Screen - Updated to work with real data
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BudgetScreen(
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    viewModel: BudgetViewModel = hiltViewModel()
 ) {
-    // Mock data for budget categories
-    val budgetCategories = remember {
-        listOf(
-            BudgetCategory("Food & Dining", "🍕", 15000.0, 12340.0, FoodColor),
-            BudgetCategory("Transportation", "🚗", 8000.0, 5420.0, TransportColor),
-            BudgetCategory("Shopping", "🛍️", 12000.0, 10200.0, ShoppingColor),
-            BudgetCategory("Entertainment", "🎮", 5000.0, 3200.0, EntertainmentColor),
-            BudgetCategory("Health", "🏥", 6000.0, 2800.0, HealthColor),
-            BudgetCategory("Bills & Utilities", "⚡", 8000.0, 7800.0, BillsColor),
-            BudgetCategory("Education", "📚", 4000.0, 1500.0, EducationColor)
-        )
+    val uiState = viewModel.uiState
+    val addBudgetState = viewModel.addBudgetState
+    var showAddBudgetDialog by remember { mutableStateOf(false) }
+
+    // Show loading state
+    if (uiState.isLoading) {
+        LoadingState(message = "Loading budgets...")
+        return
     }
 
-    val totalBudget = budgetCategories.sumOf { it.budget }
-    val totalSpent = budgetCategories.sumOf { it.spent }
-    val remainingBudget = totalBudget - totalSpent
-    val spentPercentage = (totalSpent / totalBudget * 100).toInt()
+    val remainingBudget = viewModel.getRemainingBudget()
+    val spentPercentage = viewModel.getBudgetUsagePercentage()
 
     Scaffold(
         topBar = {
@@ -71,8 +61,8 @@ fun BudgetScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* Handle settings */ }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    IconButton(onClick = { showAddBudgetDialog = true }) {
+                        Icon(Icons.Default.Add, contentDescription = "Add Budget")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -125,14 +115,14 @@ fun BudgetScreen(
                             )
 
                             Text(
-                                text = "₹${String.format("%,.0f", totalBudget)}",
+                                text = viewModel.formatAmount(uiState.totalBudget),
                                 style = MaterialTheme.typography.amountLarge,
                                 color = Color.White,
                                 modifier = Modifier.padding(vertical = 8.dp)
                             )
 
                             Text(
-                                text = "₹${String.format("%,.0f", remainingBudget)} remaining",
+                                text = "${viewModel.formatAmount(remainingBudget)} remaining",
                                 style = MaterialTheme.typography.amountSmall,
                                 color = if (remainingBudget > 0) Color.White else Color.Red.copy(alpha = 0.8f),
                                 modifier = Modifier.padding(bottom = 16.dp)
@@ -162,7 +152,7 @@ fun BudgetScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = "Spent: ₹${String.format("%,.0f", totalSpent)}",
+                                    text = "Spent: ${viewModel.formatAmount(uiState.totalSpent)}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Color.White.copy(alpha = 0.8f)
                                 )
@@ -177,7 +167,7 @@ fun BudgetScreen(
                 }
             }
 
-            // Add Category Button
+            // Budget Categories Header
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -192,7 +182,7 @@ fun BudgetScreen(
                     )
 
                     FilledTonalButton(
-                        onClick = { /* Handle add category */ },
+                        onClick = { showAddBudgetDialog = true },
                         colors = ButtonDefaults.filledTonalButtonColors(
                             containerColor = Primary100
                         )
@@ -203,14 +193,55 @@ fun BudgetScreen(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Add Category")
+                        Text("Add Budget")
                     }
                 }
             }
 
             // Budget Categories List
-            items(budgetCategories) { category ->
-                BudgetCategoryCard(category = category)
+            if (uiState.budgetCategories.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = CategoryCardShape,
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccountBalance,
+                                contentDescription = "No budgets",
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "No budgets yet",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "Create your first budget to start tracking expenses",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                }
+            } else {
+                items(uiState.budgetCategories) { category ->
+                    BudgetCategoryCard(
+                        category = category,
+                        onEditClick = { /* Handle edit */ },
+                        onDeleteClick = { viewModel.deleteBudget(category.id) }
+                    )
+                }
             }
 
             // Budget Tips Card
@@ -247,16 +278,30 @@ fun BudgetScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = when {
-                                    spentPercentage >= 90 -> "You're close to your budget limit. Consider reducing expenses."
-                                    spentPercentage >= 75 -> "You've used most of your budget. Monitor your spending carefully."
-                                    spentPercentage >= 50 -> "You're on track! Keep monitoring your expenses."
-                                    else -> "Great start! You have plenty of room in your budget."
-                                },
+                                text = viewModel.getBudgetTip(),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Primary600
                             )
                         }
+                    }
+                }
+            }
+
+            // Error Message
+            if (uiState.errorMessage != null) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Error50
+                        )
+                    ) {
+                        Text(
+                            text = uiState.errorMessage,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Error700,
+                            modifier = Modifier.padding(16.dp)
+                        )
                     }
                 }
             }
@@ -266,6 +311,26 @@ fun BudgetScreen(
             }
         }
     }
+
+    // Add Budget Dialog
+    if (showAddBudgetDialog) {
+        AddBudgetDialog(
+            uiState = addBudgetState,
+            availableCategories = uiState.availableCategories,
+            onDismiss = {
+                showAddBudgetDialog = false
+                viewModel.clearError()
+            },
+            onCategorySelected = { viewModel.updateSelectedCategory(it) },
+            onAmountChanged = { viewModel.updateBudgetAmountInput(it) },
+            onPeriodChanged = { viewModel.updateBudgetPeriod(it) },
+            onSave = {
+                viewModel.addBudget {
+                    showAddBudgetDialog = false
+                }
+            }
+        )
+    }
 }
 
 /**
@@ -273,10 +338,12 @@ fun BudgetScreen(
  */
 @Composable
 private fun BudgetCategoryCard(
-    category: BudgetCategory,
+    category: BudgetCategoryItem,
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val percentage = (category.spent / category.budget * 100).toInt()
+    val percentage = if (category.budget > 0) (category.spent / category.budget * 100).toInt() else 0
     val isOverBudget = category.spent > category.budget
 
     Card(
@@ -284,8 +351,7 @@ private fun BudgetCategoryCard(
         shape = CategoryCardShape,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
-        ),
-        onClick = { /* Handle category click */ }
+        )
     ) {
         Column(
             modifier = Modifier
@@ -321,16 +387,28 @@ private fun BudgetCategoryCard(
                     }
                 }
 
-                Text(
-                    text = "${percentage}%",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = when {
-                        isOverBudget -> Error500
-                        percentage > 80 -> Warning500
-                        else -> Tertiary500
-                    },
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${percentage}%",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = when {
+                            isOverBudget -> Error500
+                            percentage > 80 -> Warning500
+                            else -> Tertiary500
+                        },
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    IconButton(onClick = onDeleteClick) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Delete",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -378,4 +456,85 @@ private fun BudgetCategoryCard(
             }
         }
     }
+}
+
+/**
+ * Add Budget Dialog
+ */
+@Composable
+private fun AddBudgetDialog(
+    uiState: `in`.syncboard.planmate.presentation.viewmodel.AddBudgetUiState,
+    availableCategories: List<`in`.syncboard.planmate.domain.entity.Category>,
+    onDismiss: () -> Unit,
+    onCategorySelected: (`in`.syncboard.planmate.domain.entity.Category) -> Unit,
+    onAmountChanged: (String) -> Unit,
+    onPeriodChanged: (`in`.syncboard.planmate.domain.entity.BudgetPeriod) -> Unit,
+    onSave: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Budget") },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Category Selection
+                if (availableCategories.isNotEmpty()) {
+                    Text(
+                        text = "Category",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+
+                    LazyColumn(
+                        modifier = Modifier.height(120.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(availableCategories) { category ->
+                            FilterChip(
+                                onClick = { onCategorySelected(category) },
+                                label = { Text("${category.icon} ${category.name}") },
+                                selected = uiState.selectedCategory?.id == category.id
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "All categories already have budgets",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // Amount Input
+                OutlinedTextField(
+                    value = uiState.amount,
+                    onValueChange = onAmountChanged,
+                    label = { Text("Budget Amount") },
+                    prefix = { Text("₹") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (uiState.errorMessage != null) {
+                    Text(
+                        text = uiState.errorMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onSave,
+                enabled = uiState.isValidForm && !uiState.isSaving
+            ) {
+                Text(if (uiState.isSaving) "Saving..." else "Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

@@ -1,3 +1,4 @@
+// Path: app/src/main/java/in/syncboard/planmate/presentation/ui/screens/expense/AddExpenseScreen.kt
 package `in`.syncboard.planmate.presentation.ui.screens.expense
 
 import androidx.compose.foundation.background
@@ -21,52 +22,46 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import androidx.hilt.navigation.compose.hiltViewModel
 import `in`.syncboard.planmate.presentation.ui.components.CustomTextField
 import `in`.syncboard.planmate.presentation.ui.components.GradientButton
+import `in`.syncboard.planmate.presentation.ui.components.LoadingState
+import `in`.syncboard.planmate.presentation.viewmodel.ExpenseViewModel
 import `in`.syncboard.planmate.ui.theme.*
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import java.time.ZoneId
+import java.util.Calendar
 
 /**
- * Add Expense Screen
- * Allows users to add new expenses with details
+ * Add Expense Screen - With Working Date and Time Pickers
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddExpenseScreen(
     onNavigateBack: () -> Unit,
-    onExpenseSaved: () -> Unit
+    onExpenseSaved: () -> Unit,
+    viewModel: ExpenseViewModel = hiltViewModel()
 ) {
-    val coroutineScope = rememberCoroutineScope()
+    val uiState = viewModel.uiState
+    val addExpenseState = viewModel.addExpenseState
 
-    // Form state
-    var amount by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf("Food & Dining") }
+    // Date and Time state
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var selectedTime by remember { mutableStateOf(LocalTime.now()) }
-    var location by remember { mutableStateOf("") }
-    var notes by remember { mutableStateOf("") }
-    var selectedPaymentMethod by remember { mutableStateOf("Card") }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
 
-    // UI state
-    var isDatePickerOpen by remember { mutableStateOf(false) }
-    var isTimePickerOpen by remember { mutableStateOf(false) }
-    var isSaving by remember { mutableStateOf(false) }
+    // Date picker state
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = selectedDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    )
 
-    // Categories with icons and colors
-    val categories = listOf(
-        Triple("Food & Dining", "🍕", FoodColor),
-        Triple("Transportation", "🚗", TransportColor),
-        Triple("Shopping", "🛍️", ShoppingColor),
-        Triple("Entertainment", "🎮", EntertainmentColor),
-        Triple("Health", "🏥", HealthColor),
-        Triple("Bills & Utilities", "⚡", BillsColor),
-        Triple("Education", "📚", EducationColor),
-        Triple("Travel", "✈️", TravelColor)
+    // Time picker state
+    val timePickerState = rememberTimePickerState(
+        initialHour = selectedTime.hour,
+        initialMinute = selectedTime.minute
     )
 
     // Payment methods
@@ -74,8 +69,34 @@ fun AddExpenseScreen(
         Pair("Cash", "💵"),
         Pair("Card", "💳"),
         Pair("UPI", "📱"),
-        Pair("Wallet", "👛")
+        Pair("Wallet", "👛"),
+        Pair("Bank Transfer", "🏦")
     )
+
+    // Reset form when screen opens
+    LaunchedEffect(Unit) {
+        viewModel.resetAddExpenseForm()
+    }
+
+    // Update date in viewmodel when selectedDate changes
+    LaunchedEffect(selectedDate, selectedTime) {
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.YEAR, selectedDate.year)
+            set(Calendar.MONTH, selectedDate.monthValue - 1)
+            set(Calendar.DAY_OF_MONTH, selectedDate.dayOfMonth)
+            set(Calendar.HOUR_OF_DAY, selectedTime.hour)
+            set(Calendar.MINUTE, selectedTime.minute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        viewModel.updateDate(calendar.timeInMillis)
+    }
+
+    // Show loading state
+    if (addExpenseState.isSaving) {
+        LoadingState(message = "Saving expense...")
+        return
+    }
 
     Scaffold(
         topBar = {
@@ -94,22 +115,17 @@ fun AddExpenseScreen(
                 actions = {
                     TextButton(
                         onClick = {
-                            // Save expense
-                            if (amount.isNotBlank() && description.isNotBlank()) {
-                                isSaving = true
-                                // Simulate saving delay
-                                coroutineScope.launch {
-                                    delay(1500)
-                                    onExpenseSaved()
-                                }
+                            viewModel.saveExpense {
+                                onExpenseSaved()
                             }
                         },
-                        enabled = amount.isNotBlank() && description.isNotBlank() && !isSaving
+                        enabled = addExpenseState.isValidForm && !addExpenseState.isSaving
                     ) {
                         Text(
-                            "Save",
+                            if (addExpenseState.isSaving) "Saving..." else "Save",
                             fontWeight = FontWeight.Medium,
-                            color = if (amount.isNotBlank() && description.isNotBlank()) Primary500 else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (addExpenseState.isValidForm && !addExpenseState.isSaving)
+                                Primary500 else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -131,7 +147,8 @@ fun AddExpenseScreen(
                 shape = CardLargeShape,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surface
-                )
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -145,38 +162,64 @@ fun AddExpenseScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     Row(
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
                     ) {
                         Text(
                             text = "₹",
                             style = MaterialTheme.typography.displaySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = Primary500,
+                            fontWeight = FontWeight.Bold
                         )
 
                         OutlinedTextField(
-                            value = amount,
-                            onValueChange = { amount = it },
-                            placeholder = { Text("0") },
+                            value = addExpenseState.amount,
+                            onValueChange = { viewModel.updateAmount(it) },
+                            placeholder = {
+                                Text(
+                                    "0",
+                                    style = MaterialTheme.typography.displaySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
+                            },
                             textStyle = MaterialTheme.typography.displaySmall.copy(
-                                textAlign = TextAlign.Center
+                                textAlign = TextAlign.Center,
+                                fontWeight = FontWeight.Bold,
+                                color = Primary500
                             ),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color.Transparent,
-                                unfocusedBorderColor = Color.Transparent
+                                unfocusedBorderColor = Color.Transparent,
+                                cursorColor = Primary500
                             ),
-                            modifier = Modifier.width(200.dp)
+                            modifier = Modifier.width(220.dp),
+                            singleLine = true
                         )
+                    }
+
+                    if (addExpenseState.amount.isNotBlank()) {
+                        val amountValue = addExpenseState.amount.toDoubleOrNull()
+                        if (amountValue != null) {
+                            Text(
+                                text = "₹${String.format("%,.2f", amountValue)}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Basic Details Section
             Text(
-                text = "Basic Details",
+                text = "Transaction Details",
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
@@ -185,12 +228,12 @@ fun AddExpenseScreen(
 
             // Description
             CustomTextField(
-                value = description,
-                onValueChange = { description = it },
+                value = addExpenseState.description,
+                onValueChange = { viewModel.updateDescription(it) },
                 label = "Description",
                 placeholder = "What did you spend on?",
                 leadingIcon = Icons.Default.Edit,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -201,145 +244,164 @@ fun AddExpenseScreen(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 12.dp)
             )
 
             // Category Grid
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            if (addExpenseState.categories.isNotEmpty()) {
+                LazyVerticalGrid(
+                    columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.height(200.dp)
+                ) {
+                    items(addExpenseState.categories.size) { index ->
+                        val category = addExpenseState.categories[index]
+                        CategorySelectionCard(
+                            category = category,
+                            isSelected = addExpenseState.selectedCategory?.id == category.id,
+                            onClick = { viewModel.updateCategory(category) }
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text = "Loading categories...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Date and Time Selection
+            Text(
+                text = "Date & Time",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                categories.chunked(2).forEach { row ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                // Date Selection
+                Card(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { showDatePicker = true },
+                    shape = InputShape,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
                     ) {
-                        row.forEach { (category, icon, color) ->
-                            Card(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .selectable(
-                                        selected = selectedCategory == category,
-                                        onClick = { selectedCategory = category }
-                                    ),
-                                shape = CategoryCardShape,
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (selectedCategory == category) color.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surface
-                                ),
-                                border = if (selectedCategory == category)
-                                    androidx.compose.foundation.BorderStroke(2.dp, color) else null
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        text = icon,
-                                        style = MaterialTheme.typography.headlineSmall
-                                    )
-                                    Text(
-                                        text = category,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = if (selectedCategory == category) color else MaterialTheme.colorScheme.onSurface,
-                                        fontWeight = if (selectedCategory == category) FontWeight.Medium else FontWeight.Normal
-                                    )
-                                }
-                            }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.CalendarToday,
+                                contentDescription = "Select Date",
+                                tint = Primary500,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Date",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Primary500,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = selectedDate.format(DateTimeFormatter.ofPattern("MMM dd, yyyy")),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Medium
+                        )
+
+                        Text(
+                            text = when {
+                                selectedDate == LocalDate.now() -> "Today"
+                                selectedDate == LocalDate.now().minusDays(1) -> "Yesterday"
+                                selectedDate.isAfter(LocalDate.now()) -> "Future"
+                                else -> "${LocalDate.now().toEpochDay() - selectedDate.toEpochDay()} days ago"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Time Selection
+                Card(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { showTimePicker = true },
+                    shape = InputShape,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.AccessTime,
+                                contentDescription = "Select Time",
+                                tint = Secondary500,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Time",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Secondary500,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = selectedTime.format(DateTimeFormatter.ofPattern("hh:mm a")),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Medium
+                        )
+
+                        Text(
+                            text = formatTimeAgo(selectedTime),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Date and Time
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Date
-                Card(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { isDatePickerOpen = true },
-                    shape = InputShape,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.CalendarToday,
-                            contentDescription = "Date",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "Date",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = selectedDate.format(DateTimeFormatter.ofPattern("MMM dd, yyyy")),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                }
-
-                // Time
-                Card(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { isTimePickerOpen = true },
-                    shape = InputShape,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.AccessTime,
-                            contentDescription = "Time",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "Time",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = selectedTime.format(DateTimeFormatter.ofPattern("HH:mm")),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
             // Location (Optional)
             CustomTextField(
-                value = location,
-                onValueChange = { location = it },
+                value = addExpenseState.location,
+                onValueChange = { viewModel.updateLocation(it) },
                 label = "Location (Optional)",
                 placeholder = "Where did you spend?",
                 leadingIcon = Icons.Default.LocationOn,
@@ -350,51 +412,15 @@ fun AddExpenseScreen(
 
             // Notes (Optional)
             CustomTextField(
-                value = notes,
-                onValueChange = { notes = it },
+                value = addExpenseState.notes,
+                onValueChange = { viewModel.updateNotes(it) },
                 label = "Notes (Optional)",
                 placeholder = "Add any additional notes...",
                 leadingIcon = Icons.Default.Notes,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Receipt Upload (Placeholder)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = CategoryCardShape,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                )
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        Icons.Default.CameraAlt,
-                        contentDescription = "Camera",
-                        modifier = Modifier.size(32.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Add Receipt Photo",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "Tap to capture or upload receipt",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Payment Method
             Text(
@@ -405,42 +431,47 @@ fun AddExpenseScreen(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            LazyVerticalGrid(
+                columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(3),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.height(120.dp)
             ) {
-                paymentMethods.forEach { (method, icon) ->
-                    Card(
-                        modifier = Modifier
-                            .weight(1f)
-                            .selectable(
-                                selected = selectedPaymentMethod == method,
-                                onClick = { selectedPaymentMethod = method }
-                            ),
-                        shape = CategoryCardShape,
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (selectedPaymentMethod == method) Primary100 else MaterialTheme.colorScheme.surface
-                        ),
-                        border = if (selectedPaymentMethod == method)
-                            androidx.compose.foundation.BorderStroke(2.dp, Primary500) else null
+                items(paymentMethods.size) { index ->
+                    val (method, icon) = paymentMethods[index]
+                    PaymentMethodCard(
+                        method = method,
+                        icon = icon,
+                        isSelected = addExpenseState.selectedPaymentMethod == method,
+                        onClick = { viewModel.updatePaymentMethod(method) }
+                    )
+                }
+            }
+
+            // Error Message
+            if (addExpenseState.errorMessage != null) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Error50),
+                    shape = CategoryCardShape
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = icon,
-                                style = MaterialTheme.typography.headlineSmall
-                            )
-                            Text(
-                                text = method,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (selectedPaymentMethod == method) Primary700 else MaterialTheme.colorScheme.onSurface,
-                                fontWeight = if (selectedPaymentMethod == method) FontWeight.Medium else FontWeight.Normal
-                            )
-                        }
+                        Icon(
+                            Icons.Default.Error,
+                            contentDescription = "Error",
+                            tint = Error500,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = addExpenseState.errorMessage,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Error700
+                        )
                     }
                 }
             }
@@ -449,18 +480,13 @@ fun AddExpenseScreen(
 
             // Save Button
             GradientButton(
-                text = if (isSaving) "Saving..." else "Save Expense",
+                text = if (addExpenseState.isSaving) "Saving Expense..." else "Save Expense",
                 onClick = {
-                    if (amount.isNotBlank() && description.isNotBlank()) {
-                        isSaving = true
-                        // Simulate saving delay
-                        coroutineScope.launch {
-                            delay(1500)
-                            onExpenseSaved()
-                        }
+                    viewModel.saveExpense {
+                        onExpenseSaved()
                     }
                 },
-                enabled = amount.isNotBlank() && description.isNotBlank() && !isSaving,
+                enabled = addExpenseState.isValidForm && !addExpenseState.isSaving,
                 gradientColors = listOf(Primary500, Secondary500),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -470,74 +496,219 @@ fun AddExpenseScreen(
     }
 
     // Date Picker Dialog
-    if (isDatePickerOpen) {
+    if (showDatePicker) {
         DatePickerDialog(
-            onDateSelected = { date ->
-                selectedDate = date
-                isDatePickerOpen = false
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            selectedDate = LocalDate.ofEpochDay(millis / (24 * 60 * 60 * 1000))
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("OK")
+                }
             },
-            onDismiss = { isDatePickerOpen = false }
-        )
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(
+                state = datePickerState,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
 
     // Time Picker Dialog
-    if (isTimePickerOpen) {
+    if (showTimePicker) {
         TimePickerDialog(
-            onTimeSelected = { time ->
-                selectedTime = time
-                isTimePickerOpen = false
+            onDismissRequest = { showTimePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        selectedTime = LocalTime.of(timePickerState.hour, timePickerState.minute)
+                        showTimePicker = false
+                    }
+                ) {
+                    Text("OK")
+                }
             },
-            onDismiss = { isTimePickerOpen = false }
-        )
+            dismissButton = {
+                TextButton(onClick = { showTimePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            TimePicker(
+                state = timePickerState,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
 }
 
 @Composable
-private fun DatePickerDialog(
-    onDateSelected: (LocalDate) -> Unit,
-    onDismiss: () -> Unit
+private fun CategorySelectionCard(
+    category: `in`.syncboard.planmate.domain.entity.Category,
+    isSelected: Boolean,
+    onClick: () -> Unit
 ) {
-    // Simple date picker implementation
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Select Date") },
-        text = { Text("Date picker will be implemented here") },
-        confirmButton = {
-            TextButton(onClick = {
-                onDateSelected(LocalDate.now())
-            }) {
-                Text("OK")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(
+                selected = isSelected,
+                onClick = onClick
+            ),
+        shape = CategoryCardShape,
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected)
+                parseColor(category.color).copy(alpha = 0.15f)
+            else MaterialTheme.colorScheme.surface
+        ),
+        border = if (isSelected)
+            androidx.compose.foundation.BorderStroke(2.dp, parseColor(category.color))
+        else null,
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isSelected) 4.dp else 2.dp
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = category.icon,
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            Text(
+                text = category.name,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (isSelected)
+                    parseColor(category.color)
+                else MaterialTheme.colorScheme.onSurface,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                textAlign = TextAlign.Center,
+                maxLines = 2
+            )
         }
-    )
+    }
+}
+
+@Composable
+private fun PaymentMethodCard(
+    method: String,
+    icon: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(
+                selected = isSelected,
+                onClick = onClick
+            ),
+        shape = CategoryCardShape,
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) Primary100 else MaterialTheme.colorScheme.surface
+        ),
+        border = if (isSelected)
+            androidx.compose.foundation.BorderStroke(2.dp, Primary500)
+        else null,
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isSelected) 4.dp else 2.dp
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = icon,
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            Text(
+                text = method,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (isSelected) Primary700 else MaterialTheme.colorScheme.onSurface,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+        }
+    }
 }
 
 @Composable
 private fun TimePickerDialog(
-    onTimeSelected: (LocalTime) -> Unit,
-    onDismiss: () -> Unit
+    onDismissRequest: () -> Unit,
+    confirmButton: @Composable () -> Unit,
+    dismissButton: @Composable () -> Unit,
+    content: @Composable () -> Unit
 ) {
-    // Simple time picker implementation
     AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Select Time") },
-        text = { Text("Time picker will be implemented here") },
-        confirmButton = {
-            TextButton(onClick = {
-                onTimeSelected(LocalTime.now())
-            }) {
-                Text("OK")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
+        onDismissRequest = onDismissRequest,
+        confirmButton = confirmButton,
+        dismissButton = dismissButton,
+        text = content,
+        title = {
+            Text(
+                text = "Select Time",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold
+            )
         }
+    )
+}
+
+// Helper functions
+private fun parseColor(colorString: String): Color {
+    return try {
+        Color(android.graphics.Color.parseColor(colorString))
+    } catch (e: Exception) {
+        Primary500
+    }
+}
+
+private fun formatTimeAgo(selectedTime: LocalTime): String {
+    val now = LocalTime.now()
+    val diffMinutes = java.time.Duration.between(selectedTime, now).toMinutes()
+
+    return when {
+        diffMinutes < 0 -> "In the future"
+        diffMinutes == 0L -> "Just now"
+        diffMinutes < 60 -> "$diffMinutes minutes ago"
+        diffMinutes < 120 -> "1 hour ago"
+        diffMinutes < 1440 -> "${diffMinutes / 60} hours ago"
+        else -> "More than a day ago"
+    }
+}
+
+@Composable
+private fun LazyVerticalGrid(
+    columns: androidx.compose.foundation.lazy.grid.GridCells,
+    modifier: Modifier = Modifier,
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.Start,
+    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
+    content: androidx.compose.foundation.lazy.grid.LazyGridScope.() -> Unit
+) {
+    androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+        columns = columns,
+        modifier = modifier,
+        horizontalArrangement = horizontalArrangement,
+        verticalArrangement = verticalArrangement,
+        content = content
     )
 }

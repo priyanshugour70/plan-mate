@@ -2,41 +2,41 @@ package `in`.syncboard.planmate.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Primary Colors - Blue theme for financial trust
-val Primary50 = Color(0xFFE3F2FD)
-val Primary100 = Color(0xFFBBDEFB)
-val Primary200 = Color(0xFF90CAF9)
-val Primary300 = Color(0xFF64B5F6)
-val Primary400 = Color(0xFF42A5F5)
-val Primary500 = Color(0xFF2196F3) // Main primary
-val Primary600 = Color(0xFF1E88E5)
-val Primary700 = Color(0xFF1976D2)
-val Primary800 = Color(0xFF1565C0)
-val Primary900 = Color(0xFF0D47A1)
+// Primary Colors - Warm Orange
+val Primary50 = Color(0xFFFFF3E0)
+val Primary100 = Color(0xFFFFE0B2)
+val Primary200 = Color(0xFFFFCC80)
+val Primary300 = Color(0xFFFFB74D)
+val Primary400 = Color(0xFFFFA726)
+val Primary500 = Color(0xFFFF9800) // Main primary
+val Primary600 = Color(0xFFFB8C00)
+val Primary700 = Color(0xFFF57C00)
+val Primary800 = Color(0xFFEF6C00)
+val Primary900 = Color(0xFFE65100)
 
-// Secondary Colors - Purple for accent
-val Secondary50 = Color(0xFFF3E5F5)
-val Secondary100 = Color(0xFFE1BEE7)
-val Secondary200 = Color(0xFFCE93D8)
-val Secondary300 = Color(0xFFBA68C8)
-val Secondary400 = Color(0xFFAB47BC)
-val Secondary500 = Color(0xFF9C27B0) // Main secondary
-val Secondary600 = Color(0xFF8E24AA)
-val Secondary700 = Color(0xFF7B1FA2)
-val Secondary800 = Color(0xFF6A1B9A)
-val Secondary900 = Color(0xFF4A148C)
+// Secondary Colors - Warm Amber
+val Secondary50 = Color(0xFFFFF8E1)
+val Secondary100 = Color(0xFFFFECB3)
+val Secondary200 = Color(0xFFFFE082)
+val Secondary300 = Color(0xFFFFD54F)
+val Secondary400 = Color(0xFFFFCA28)
+val Secondary500 = Color(0xFFFFC107) // Main secondary
+val Secondary600 = Color(0xFFFFB300)
+val Secondary700 = Color(0xFFFFA000)
+val Secondary800 = Color(0xFFFF8F00)
+val Secondary900 = Color(0xFFFF6F00)
 
-// Tertiary Colors - Green for success/money
-val Tertiary50 = Color(0xFFE8F5E8)
-val Tertiary100 = Color(0xFFC8E6C9)
-val Tertiary200 = Color(0xFFA5D6A7)
-val Tertiary300 = Color(0xFF81C784)
-val Tertiary400 = Color(0xFF66BB6A)
-val Tertiary500 = Color(0xFF4CAF50) // Main tertiary
-val Tertiary600 = Color(0xFF43A047)
-val Tertiary700 = Color(0xFF388E3C)
-val Tertiary800 = Color(0xFF2E7D32)
-val Tertiary900 = Color(0xFF1B5E20)
+// Tertiary Colors - Warm Brown
+val Tertiary50 = Color(0xFFEFEBE9)
+val Tertiary100 = Color(0xFFD7CCC8)
+val Tertiary200 = Color(0xFFBCAAA4)
+val Tertiary300 = Color(0xFFA1887F)
+val Tertiary400 = Color(0xFF8D6E63)
+val Tertiary500 = Color(0xFF795548) // Main tertiary
+val Tertiary600 = Color(0xFF6D4C41)
+val Tertiary700 = Color(0xFF5D4037)
+val Tertiary800 = Color(0xFF4E342E)
+val Tertiary900 = Color(0xFF3E2723)
 
 // Error Colors - Red for expenses/warnings
 val Error50 = Color(0xFFFFEBEE)
@@ -50,7 +50,7 @@ val Error700 = Color(0xFFD32F2F)
 val Error800 = Color(0xFFC62828)
 val Error900 = Color(0xFFB71C1C)
 
-// Warning Colors - Orange/Amber
+// Warning Colors - Orange/Amber (already warm, can be kept or adjusted)
 val Warning50 = Color(0xFFFFF8E1)
 val Warning100 = Color(0xFFFFECB3)
 val Warning200 = Color(0xFFFFE082)
@@ -89,16 +89,16 @@ val GradientEnd = Secondary500
 val GradientAccent = Tertiary500
 
 // Income/Expense Colors
-val IncomeGreen = Tertiary500
+val IncomeGreen = Color(0xFF4CAF50) // Kept Green for positive connotation
 val ExpenseRed = Error500
-val SavingsBlue = Primary500
+val SavingsBlue = Primary500 // Will become Orange with new Primary500
 
-// Category Colors for expenses
-val FoodColor = Color(0xFFFF9800) // Orange
-val TransportColor = Color(0xFF2196F3) // Blue
-val ShoppingColor = Color(0xFFE91E63) // Pink
-val EntertainmentColor = Color(0xFF9C27B0) // Purple
-val HealthColor = Color(0xFF4CAF50) // Green
-val BillsColor = Color(0xFFFF5722) // Deep Orange
-val EducationColor = Color(0xFF607D8B) // Blue Grey
-val TravelColor = Color(0xFF795548) // Brown
+// Category Colors for expenses - Adjusted to warmer tones or kept if suitable
+val FoodColor = Color(0xFFFF9800) // Orange (already warm)
+val TransportColor = Color(0xFF795548) // Brown (warm)
+val ShoppingColor = Color(0xFFE57373) // Softer Red (warm)
+val EntertainmentColor = Color(0xFFFFB74D) // Lighter Orange (warm)
+val HealthColor = Color(0xFF8D6E63) // Brown (warm)
+val BillsColor = Color(0xFFF57C00) // Darker Orange (warm)
+val EducationColor = Color(0xFFA1887F) // Lighter Brown (warm)
+val TravelColor = Color(0xFF4E342E) // Dark Brown (warm)

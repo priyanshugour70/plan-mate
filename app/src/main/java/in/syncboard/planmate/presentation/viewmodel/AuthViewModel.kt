@@ -1,3 +1,5 @@
+// Path: app/src/main/java/in/syncboard/planmate/presentation/viewmodel/AuthViewModel.kt
+
 package `in`.syncboard.planmate.presentation.viewmodel
 
 import androidx.compose.runtime.mutableStateOf
@@ -6,51 +8,70 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import `in`.syncboard.planmate.domain.repository.AuthRepository
+import `in`.syncboard.planmate.domain.entity.User
 import javax.inject.Inject
 
 /**
  * UI State for Authentication Screens
- * Holds all the state needed for login and registration
  */
 data class AuthUiState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val isLoginSuccessful: Boolean = false,
-    val isRegistrationSuccessful: Boolean = false
+    val isRegistrationSuccessful: Boolean = false,
+    val currentUser: User? = null,
+    val isLoggedIn: Boolean = false
 )
 
-/**
- * Authentication ViewModel
- * Handles login and registration logic
- *
- * @HiltViewModel - Tells Hilt this is a ViewModel that can be injected
- * @Inject constructor() - Allows Hilt to create instances of this class
- */
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    // Future: We'll inject repository here for actual authentication
-    // private val authRepository: AuthRepository
+    private val authRepository: AuthRepository
 ) : ViewModel() {
 
-    // Mutable state that the UI can observe
     var uiState by mutableStateOf(AuthUiState())
         private set
 
-    /**
-     * Handle user login
-     * For now, this simulates login without actual backend
-     */
+    init {
+        checkAuthState()
+    }
+
+    private fun checkAuthState() {
+        viewModelScope.launch {
+            try {
+                val isLoggedIn = authRepository.isUserLoggedIn()
+                if (isLoggedIn) {
+                    authRepository.getCurrentUser().fold(
+                        onSuccess = { user ->
+                            uiState = uiState.copy(
+                                currentUser = user,
+                                isLoggedIn = true
+                            )
+                        },
+                        onFailure = {
+                            // Clear invalid session
+                            authRepository.logout()
+                            uiState = uiState.copy(isLoggedIn = false)
+                        }
+                    )
+                } else {
+                    uiState = uiState.copy(isLoggedIn = false)
+                }
+            } catch (e: Exception) {
+                uiState = uiState.copy(
+                    isLoggedIn = false,
+                    errorMessage = "Failed to check authentication state"
+                )
+            }
+        }
+    }
+
     fun login(email: String, password: String) {
         viewModelScope.launch {
-            // Show loading state
             uiState = uiState.copy(isLoading = true, errorMessage = null)
 
-            // Simulate network call delay
-            delay(2000)
-
-            // Simple validation (replace with real authentication later)
+            // Validate inputs
             if (email.isBlank() || password.isBlank()) {
                 uiState = uiState.copy(
                     isLoading = false,
@@ -59,7 +80,7 @@ class AuthViewModel @Inject constructor(
                 return@launch
             }
 
-            if (!email.contains("@")) {
+            if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
                 uiState = uiState.copy(
                     isLoading = false,
                     errorMessage = "Please enter a valid email"
@@ -67,36 +88,31 @@ class AuthViewModel @Inject constructor(
                 return@launch
             }
 
-            if (password.length < 6) {
-                uiState = uiState.copy(
-                    isLoading = false,
-                    errorMessage = "Password must be at least 6 characters"
-                )
-                return@launch
-            }
-
-            // Simulate successful login
-            uiState = uiState.copy(
-                isLoading = false,
-                isLoginSuccessful = true,
-                errorMessage = null
+            authRepository.login(email, password).fold(
+                onSuccess = { user ->
+                    uiState = uiState.copy(
+                        isLoading = false,
+                        isLoginSuccessful = true,
+                        currentUser = user,
+                        isLoggedIn = true,
+                        errorMessage = null
+                    )
+                },
+                onFailure = { exception ->
+                    uiState = uiState.copy(
+                        isLoading = false,
+                        errorMessage = exception.message ?: "Login failed"
+                    )
+                }
             )
         }
     }
 
-    /**
-     * Handle user registration
-     * For now, this simulates registration without actual backend
-     */
     fun register(name: String, email: String, phone: String, password: String) {
         viewModelScope.launch {
-            // Show loading state
             uiState = uiState.copy(isLoading = true, errorMessage = null)
 
-            // Simulate network call delay
-            delay(2000)
-
-            // Simple validation
+            // Validate inputs
             when {
                 name.isBlank() || email.isBlank() || phone.isBlank() || password.isBlank() -> {
                     uiState = uiState.copy(
@@ -106,7 +122,7 @@ class AuthViewModel @Inject constructor(
                     return@launch
                 }
 
-                !email.contains("@") -> {
+                !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches() -> {
                     uiState = uiState.copy(
                         isLoading = false,
                         errorMessage = "Please enter a valid email"
@@ -131,28 +147,79 @@ class AuthViewModel @Inject constructor(
                 }
             }
 
-            // Simulate successful registration
-            uiState = uiState.copy(
-                isLoading = false,
-                isRegistrationSuccessful = true,
-                errorMessage = null
+            authRepository.register(name, email, phone, password).fold(
+                onSuccess = { user ->
+                    uiState = uiState.copy(
+                        isLoading = false,
+                        isRegistrationSuccessful = true,
+                        currentUser = user,
+                        isLoggedIn = true,
+                        errorMessage = null
+                    )
+                },
+                onFailure = { exception ->
+                    uiState = uiState.copy(
+                        isLoading = false,
+                        errorMessage = exception.message ?: "Registration failed"
+                    )
+                }
             )
         }
     }
 
-    /**
-     * Clear any error messages
-     * Called when user starts typing or dismisses error
-     */
+    fun logout() {
+        viewModelScope.launch {
+            authRepository.logout().fold(
+                onSuccess = {
+                    uiState = AuthUiState() // Reset to initial state
+                },
+                onFailure = { exception ->
+                    uiState = uiState.copy(
+                        errorMessage = exception.message ?: "Logout failed"
+                    )
+                }
+            )
+        }
+    }
+
     fun clearError() {
         uiState = uiState.copy(errorMessage = null)
     }
 
-    /**
-     * Reset authentication state
-     * Called when navigating between login/register screens
-     */
     fun resetState() {
-        uiState = AuthUiState()
+        uiState = uiState.copy(
+            isLoginSuccessful = false,
+            isRegistrationSuccessful = false,
+            errorMessage = null
+        )
+    }
+
+    fun resetPassword(email: String) {
+        viewModelScope.launch {
+            uiState = uiState.copy(isLoading = true, errorMessage = null)
+
+            if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                uiState = uiState.copy(
+                    isLoading = false,
+                    errorMessage = "Please enter a valid email"
+                )
+                return@launch
+            }
+
+            authRepository.resetPassword(email).fold(
+                onSuccess = {
+                    uiState = uiState.copy(
+                        isLoading = false,
+                        errorMessage = "Password reset instructions sent to your email"
+                    )
+                },
+                onFailure = { exception ->
+                    uiState = uiState.copy(
+                        isLoading = false,
+                        errorMessage = exception.message ?: "Failed to send reset email"
+                    )
+                }
+            )
+        }
     }
 }

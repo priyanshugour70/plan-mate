@@ -1,3 +1,5 @@
+// Path: app/src/main/java/in/syncboard/planmate/presentation/viewmodel/BudgetViewModel.kt
+
 package `in`.syncboard.planmate.presentation.viewmodel
 
 import androidx.compose.runtime.mutableStateOf
@@ -6,19 +8,23 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import `in`.syncboard.planmate.core.constants.AppConstants
+import `in`.syncboard.planmate.domain.repository.AuthRepository
+import `in`.syncboard.planmate.domain.repository.BudgetRepository
+import `in`.syncboard.planmate.domain.repository.CategoryRepository
+import `in`.syncboard.planmate.domain.repository.TransactionRepository
+import `in`.syncboard.planmate.domain.entity.*
+import java.util.*
 import javax.inject.Inject
 
 /**
- * Budget Category Data Class
+ * Budget Category Data Class for UI
  */
-data class BudgetCategory(
+data class BudgetCategoryItem(
     val id: String,
     val name: String,
     val icon: String,
-    val allocated: Double,
+    val budget: Double,
     val spent: Double,
     val color: androidx.compose.ui.graphics.Color
 )
@@ -30,157 +36,261 @@ data class BudgetUiState(
     val isLoading: Boolean = true,
     val totalBudget: Double = 0.0,
     val totalSpent: Double = 0.0,
-    val categories: List<BudgetCategory> = emptyList(),
-    val errorMessage: String? = null
+    val budgetCategories: List<BudgetCategoryItem> = emptyList(),
+    val availableCategories: List<Category> = emptyList(),
+    val errorMessage: String? = null,
+    val currentUserId: String = ""
 )
 
 /**
- * Budget ViewModel
- * Manages budget allocation and category-wise spending
+ * Add Budget UI State
  */
+data class AddBudgetUiState(
+    val selectedCategory: Category? = null,
+    val amount: String = "",
+    val period: BudgetPeriod = BudgetPeriod.MONTHLY,
+    val isSaving: Boolean = false,
+    val errorMessage: String? = null,
+    val isValidForm: Boolean = false
+)
+
 @HiltViewModel
 class BudgetViewModel @Inject constructor(
-    // Future: Inject repositories here
-    // private val budgetRepository: BudgetRepository
+    private val authRepository: AuthRepository,
+    private val budgetRepository: BudgetRepository,
+    private val categoryRepository: CategoryRepository,
+    private val transactionRepository: TransactionRepository
 ) : ViewModel() {
 
     var uiState by mutableStateOf(BudgetUiState())
         private set
 
+    var addBudgetState by mutableStateOf(AddBudgetUiState())
+        private set
+
     init {
-        loadBudgetData()
+        loadUserAndBudgets()
     }
 
-    /**
-     * Load budget data from local storage
-     */
-    private fun loadBudgetData() {
+    private fun loadUserAndBudgets() {
         viewModelScope.launch {
-            uiState = uiState.copy(isLoading = true)
+            authRepository.getCurrentUser().fold(
+                onSuccess = { user ->
+                    if (user != null) {
+                        uiState = uiState.copy(currentUserId = user.id)
+                        loadBudgetData(user.id)
+                    } else {
+                        uiState = uiState.copy(
+                            isLoading = false,
+                            errorMessage = "User not found"
+                        )
+                    }
+                },
+                onFailure = { exception ->
+                    uiState = uiState.copy(
+                        isLoading = false,
+                        errorMessage = exception.message ?: "Failed to load user"
+                    )
+                }
+            )
+        }
+    }
 
-            // Simulate loading delay
-            delay(1000)
+    private suspend fun loadBudgetData(userId: String) {
+        try {
+            // Load current budgets
+            budgetRepository.getCurrentBudgets(userId).fold(
+                onSuccess = { budgets ->
+                    // Load categories for each budget
+                    val budgetItems = mutableListOf<BudgetCategoryItem>()
 
-            // Mock budget categories data
-            val categories = listOf(
-                BudgetCategory(
-                    id = "1",
-                    name = "Food & Dining",
-                    icon = "🍕",
-                    allocated = 15000.0,
-                    spent = 12340.0,
-                    color = `in`.syncboard.planmate.ui.theme.FoodColor
-                ),
-                BudgetCategory(
-                    id = "2",
-                    name = "Transportation",
-                    icon = "🚗",
-                    allocated = 8000.0,
-                    spent = 5420.0,
-                    color = `in`.syncboard.planmate.ui.theme.TransportColor
-                ),
-                BudgetCategory(
-                    id = "3",
-                    name = "Shopping",
-                    icon = "🛍️",
-                    allocated = 12000.0,
-                    spent = 10200.0,
-                    color = `in`.syncboard.planmate.ui.theme.ShoppingColor
-                ),
-                BudgetCategory(
-                    id = "4",
-                    name = "Entertainment",
-                    icon = "🎮",
-                    allocated = 5000.0,
-                    spent = 3200.0,
-                    color = `in`.syncboard.planmate.ui.theme.EntertainmentColor
-                ),
-                BudgetCategory(
-                    id = "5",
-                    name = "Health",
-                    icon = "🏥",
-                    allocated = 6000.0,
-                    spent = 2800.0,
-                    color = `in`.syncboard.planmate.ui.theme.HealthColor
-                ),
-                BudgetCategory(
-                    id = "6",
-                    name = "Bills & Utilities",
-                    icon = "⚡",
-                    allocated = 8000.0,
-                    spent = 7800.0,
-                    color = `in`.syncboard.planmate.ui.theme.BillsColor
-                )
+                    for (budget in budgets) {
+                        categoryRepository.getCategoryById(budget.categoryId).fold(
+                            onSuccess = { category ->
+                                if (category != null) {
+                                    budgetItems.add(
+                                        BudgetCategoryItem(
+                                            id = budget.id,
+                                            name = category.name,
+                                            icon = category.icon,
+                                            budget = budget.allocatedAmount,
+                                            spent = budget.spentAmount,
+                                            color = parseColor(category.color)
+                                        )
+                                    )
+                                }
+                            },
+                            onFailure = { /* Skip this budget item */ }
+                        )
+                    }
+
+                    val totalBudget = budgetItems.sumOf { it.budget }
+                    val totalSpent = budgetItems.sumOf { it.spent }
+
+                    uiState = uiState.copy(
+                        budgetCategories = budgetItems,
+                        totalBudget = totalBudget,
+                        totalSpent = totalSpent
+                    )
+                },
+                onFailure = { exception ->
+                    uiState = uiState.copy(
+                        errorMessage = exception.message ?: "Failed to load budgets"
+                    )
+                }
             )
 
-            val totalBudget = categories.sumOf { it.allocated }
-            val totalSpent = categories.sumOf { it.spent }
+            // Load available categories for creating new budgets
+            loadAvailableCategories(userId)
 
+            uiState = uiState.copy(isLoading = false)
+
+        } catch (e: Exception) {
             uiState = uiState.copy(
                 isLoading = false,
-                totalBudget = totalBudget,
-                totalSpent = totalSpent,
-                categories = categories
+                errorMessage = "Failed to load budget data"
             )
         }
     }
 
-    /**
-     * Update budget for a category
-     */
-    fun updateCategoryBudget(categoryId: String, newBudget: Double) {
+    private suspend fun loadAvailableCategories(userId: String) {
+        categoryRepository.getCategoriesByType(userId, TransactionType.EXPENSE).fold(
+            onSuccess = { categories ->
+                // Filter out categories that already have budgets
+                val existingCategoryIds = uiState.budgetCategories.map { it.id }.toSet()
+                val availableCategories = categories.filter { it.id !in existingCategoryIds }
+
+                uiState = uiState.copy(availableCategories = availableCategories)
+                addBudgetState = addBudgetState.copy(
+                    selectedCategory = availableCategories.firstOrNull()
+                )
+            },
+            onFailure = { /* Handle error silently */ }
+        )
+    }
+
+    fun updateBudgetAmount(budgetId: String, newAmount: Double) {
         viewModelScope.launch {
-            val updatedCategories = uiState.categories.map { category ->
-                if (category.id == categoryId) {
-                    category.copy(allocated = newBudget)
-                } else {
-                    category
-                }
+            // Find the budget and update it
+            val budget = uiState.budgetCategories.find { it.id == budgetId }
+            if (budget != null && uiState.currentUserId.isNotEmpty()) {
+                // Create updated budget entity
+                val updatedBudget = Budget(
+                    id = budgetId,
+                    userId = uiState.currentUserId,
+                    categoryId = "", // Would need to be stored/retrieved
+                    allocatedAmount = newAmount,
+                    spentAmount = budget.spent,
+                    period = BudgetPeriod.MONTHLY,
+                    startDate = getMonthStart(),
+                    endDate = getMonthEnd(),
+                    isActive = true,
+                    createdAt = System.currentTimeMillis(),
+                    updatedAt = System.currentTimeMillis()
+                )
+
+                budgetRepository.updateBudget(updatedBudget).fold(
+                    onSuccess = {
+                        loadBudgetData(uiState.currentUserId)
+                    },
+                    onFailure = { exception ->
+                        uiState = uiState.copy(
+                            errorMessage = exception.message ?: "Failed to update budget"
+                        )
+                    }
+                )
             }
-
-            val newTotalBudget = updatedCategories.sumOf { it.allocated }
-
-            uiState = uiState.copy(
-                categories = updatedCategories,
-                totalBudget = newTotalBudget
-            )
         }
     }
 
-    /**
-     * Add new budget category
-     */
-    fun addCategory(name: String, icon: String, budget: Double) {
+    // Add Budget Functions
+    fun updateSelectedCategory(category: Category) {
+        addBudgetState = addBudgetState.copy(selectedCategory = category)
+        validateAddBudgetForm()
+    }
+
+    fun updateBudgetAmountInput(amount: String) {
+        addBudgetState = addBudgetState.copy(amount = amount)
+        validateAddBudgetForm()
+    }
+
+    fun updateBudgetPeriod(period: BudgetPeriod) {
+        addBudgetState = addBudgetState.copy(period = period)
+    }
+
+    private fun validateAddBudgetForm() {
+        val isValid = addBudgetState.selectedCategory != null &&
+                addBudgetState.amount.isNotBlank() &&
+                addBudgetState.amount.toDoubleOrNull() != null &&
+                addBudgetState.amount.toDoubleOrNull()!! > 0
+
+        addBudgetState = addBudgetState.copy(isValidForm = isValid)
+    }
+
+    fun addBudget(onSuccess: () -> Unit) {
+        if (!addBudgetState.isValidForm || uiState.currentUserId.isEmpty()) return
+
         viewModelScope.launch {
-            val newCategory = BudgetCategory(
-                id = System.currentTimeMillis().toString(),
-                name = name,
-                icon = icon,
-                allocated = budget,
-                spent = 0.0,
-                color = `in`.syncboard.planmate.ui.theme.Primary500
-            )
+            addBudgetState = addBudgetState.copy(isSaving = true)
 
-            val updatedCategories = uiState.categories + newCategory
-            val newTotalBudget = updatedCategories.sumOf { it.allocated }
+            try {
+                val budget = Budget(
+                    id = UUID.randomUUID().toString(),
+                    userId = uiState.currentUserId,
+                    categoryId = addBudgetState.selectedCategory!!.id,
+                    allocatedAmount = addBudgetState.amount.toDouble(),
+                    spentAmount = 0.0,
+                    period = addBudgetState.period,
+                    startDate = getMonthStart(),
+                    endDate = getMonthEnd(),
+                    isActive = true,
+                    createdAt = System.currentTimeMillis(),
+                    updatedAt = System.currentTimeMillis()
+                )
 
-            uiState = uiState.copy(
-                categories = updatedCategories,
-                totalBudget = newTotalBudget
+                budgetRepository.createBudget(budget).fold(
+                    onSuccess = {
+                        addBudgetState = AddBudgetUiState() // Reset form
+                        loadBudgetData(uiState.currentUserId) // Refresh data
+                        onSuccess()
+                    },
+                    onFailure = { exception ->
+                        addBudgetState = addBudgetState.copy(
+                            isSaving = false,
+                            errorMessage = exception.message ?: "Failed to create budget"
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                addBudgetState = addBudgetState.copy(
+                    isSaving = false,
+                    errorMessage = "Failed to create budget"
+                )
+            }
+        }
+    }
+
+    fun deleteBudget(budgetId: String) {
+        viewModelScope.launch {
+            budgetRepository.deleteBudget(budgetId).fold(
+                onSuccess = {
+                    if (uiState.currentUserId.isNotEmpty()) {
+                        loadBudgetData(uiState.currentUserId)
+                    }
+                },
+                onFailure = { exception ->
+                    uiState = uiState.copy(
+                        errorMessage = exception.message ?: "Failed to delete budget"
+                    )
+                }
             )
         }
     }
 
-    /**
-     * Get remaining budget
-     */
     fun getRemainingBudget(): Double {
         return uiState.totalBudget - uiState.totalSpent
     }
 
-    /**
-     * Get budget usage percentage
-     */
     fun getBudgetUsagePercentage(): Int {
         return if (uiState.totalBudget > 0) {
             ((uiState.totalSpent / uiState.totalBudget) * 100).toInt()
@@ -189,28 +299,10 @@ class BudgetViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Check if budget is over limit
-     */
     fun isBudgetOverLimit(): Boolean {
         return uiState.totalSpent > uiState.totalBudget
     }
 
-    /**
-     * Get budget warning level
-     */
-    fun getBudgetWarningLevel(): BudgetWarningLevel {
-        val percentage = getBudgetUsagePercentage()
-        return when {
-            percentage >= AppConstants.BUDGET_DANGER_THRESHOLD -> BudgetWarningLevel.DANGER
-            percentage >= AppConstants.BUDGET_WARNING_THRESHOLD -> BudgetWarningLevel.WARNING
-            else -> BudgetWarningLevel.SAFE
-        }
-    }
-
-    /**
-     * Get budget tip based on current usage
-     */
     fun getBudgetTip(): String {
         val percentage = getBudgetUsagePercentage()
         return when {
@@ -221,33 +313,50 @@ class BudgetViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Format currency amounts
-     */
     fun formatAmount(amount: Double): String {
         return "₹${String.format("%,.0f", amount)}"
     }
 
-    /**
-     * Refresh budget data
-     */
-    fun refreshData() {
-        loadBudgetData()
+    private fun getMonthStart(): Long {
+        val calendar = Calendar.getInstance()
+        calendar.set(Calendar.DAY_OF_MONTH, 1)
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        return calendar.timeInMillis
     }
 
-    /**
-     * Clear error message
-     */
+    private fun getMonthEnd(): Long {
+        val calendar = Calendar.getInstance()
+        calendar.add(Calendar.MONTH, 1)
+        calendar.set(Calendar.DAY_OF_MONTH, 1)
+        calendar.add(Calendar.DAY_OF_MONTH, -1)
+        calendar.set(Calendar.HOUR_OF_DAY, 23)
+        calendar.set(Calendar.MINUTE, 59)
+        calendar.set(Calendar.SECOND, 59)
+        calendar.set(Calendar.MILLISECOND, 999)
+        return calendar.timeInMillis
+    }
+
+    private fun parseColor(colorString: String): androidx.compose.ui.graphics.Color {
+        return try {
+            androidx.compose.ui.graphics.Color(android.graphics.Color.parseColor(colorString))
+        } catch (e: Exception) {
+            `in`.syncboard.planmate.ui.theme.Primary500
+        }
+    }
+
+    fun refreshData() {
+        if (uiState.currentUserId.isNotEmpty()) {
+            viewModelScope.launch {
+                loadBudgetData(uiState.currentUserId)
+            }
+        }
+    }
+
     fun clearError() {
         uiState = uiState.copy(errorMessage = null)
+        addBudgetState = addBudgetState.copy(errorMessage = null)
     }
-}
-
-/**
- * Budget Warning Level Enum
- */
-enum class BudgetWarningLevel {
-    SAFE,
-    WARNING,
-    DANGER
 }

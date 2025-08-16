@@ -1,3 +1,5 @@
+// Path: app/src/main/java/in/syncboard/planmate/presentation/ui/screens/auth/LoginScreen.kt
+
 package `in`.syncboard.planmate.presentation.ui.screens.auth
 
 import androidx.compose.foundation.background
@@ -17,7 +19,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import `in`.syncboard.planmate.presentation.ui.components.CustomTextField
 import `in`.syncboard.planmate.presentation.ui.components.GradientButton
 import `in`.syncboard.planmate.presentation.ui.components.LoadingState
@@ -25,27 +26,25 @@ import `in`.syncboard.planmate.presentation.viewmodel.AuthViewModel
 import `in`.syncboard.planmate.ui.theme.*
 
 /**
- * Login Screen
- * First screen users see when they open the app
- * Handles user authentication
+ * Login Screen - Updated to work with real authentication
  */
 @Composable
 fun LoginScreen(
     onNavigateToRegister: () -> Unit,
+    onNavigateToForgotPassword: () -> Unit,
     onLoginSuccess: () -> Unit,
-    viewModel: AuthViewModel = hiltViewModel()
+    viewModel: AuthViewModel
 ) {
-    // State variables for form inputs
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
-    // Observe ViewModel state
     val uiState = viewModel.uiState
 
     // Handle successful login
     LaunchedEffect(uiState.isLoginSuccessful) {
         if (uiState.isLoginSuccessful) {
             onLoginSuccess()
+            viewModel.resetState()
         }
     }
 
@@ -201,6 +200,7 @@ fun LoginScreen(
                     onClick = {
                         viewModel.login(email, password)
                     },
+                    enabled = email.isNotBlank() && password.isNotBlank(),
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -208,7 +208,7 @@ fun LoginScreen(
 
                 // Forgot Password
                 TextButton(
-                    onClick = { /* Handle forgot password */ },
+                    onClick = onNavigateToForgotPassword,
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 ) {
                     Text(

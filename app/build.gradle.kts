@@ -1,3 +1,5 @@
+// Path: app/build.gradle.kts
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -21,6 +23,16 @@ android {
 
         vectorDrawables {
             useSupportLibrary = true
+        }
+
+        // Room schema export directory
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments += mapOf(
+                    "room.schemaLocation" to "$projectDir/schemas",
+                    "room.incremental" to "true"
+                )
+            }
         }
     }
 
@@ -85,15 +97,35 @@ dependencies {
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
     // Lifecycle & ViewModel
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.6.1")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
 
     // Dependency Injection
     implementation("com.google.dagger:hilt-android:2.52")
     kapt("com.google.dagger:hilt-compiler:2.52")
 
+    // Room Database
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    kapt("androidx.room:room-compiler:2.6.1")
+
+    // DataStore for preferences
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    // Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    // Security for encrypted preferences
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // JSON processing for TypeConverters
+    implementation("com.google.code.gson:gson:2.10.1")
+
     // System UI Controller
     implementation("com.google.accompanist:accompanist-systemuicontroller:0.36.0")
+
+    // Date Picker
+    implementation("io.github.vanpra.compose-material-dialogs:datetime:0.9.0")
 
     // Testing
     testImplementation(libs.junit)

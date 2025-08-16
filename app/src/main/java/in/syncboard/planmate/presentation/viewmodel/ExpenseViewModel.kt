@@ -1,3 +1,5 @@
+// Path: app/src/main/java/in/syncboard/planmate/presentation/viewmodel/ExpenseViewModel.kt (Fixed)
+
 package `in`.syncboard.planmate.presentation.viewmodel
 
 import androidx.compose.runtime.mutableStateOf
@@ -6,15 +8,18 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import `in`.syncboard.planmate.core.constants.AppConstants
+import `in`.syncboard.planmate.domain.repository.AuthRepository
+import `in`.syncboard.planmate.domain.repository.TransactionRepository
+import `in`.syncboard.planmate.domain.repository.CategoryRepository
+import `in`.syncboard.planmate.domain.entity.*
+import java.util.*
 import javax.inject.Inject
 
 /**
- * Expense Data Class (Enhanced Transaction)
+ * Expense Data Class for UI
  */
-data class Expense(
+data class ExpenseItem(
     val id: String,
     val title: String,
     val amount: Double,
@@ -24,7 +29,6 @@ data class Expense(
     val location: String? = null,
     val notes: String? = null,
     val paymentMethod: String,
-    val receiptPath: String? = null,
     val isIncome: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()
 )
@@ -34,14 +38,14 @@ data class Expense(
  */
 data class ExpenseUiState(
     val isLoading: Boolean = true,
-    val expenses: List<Expense> = emptyList(),
-    val filteredExpenses: List<Expense> = emptyList(),
+    val expenses: List<ExpenseItem> = emptyList(),
+    val filteredExpenses: List<ExpenseItem> = emptyList(),
     val searchQuery: String = "",
     val selectedCategory: String? = null,
     val totalExpenses: Double = 0.0,
     val averageDaily: Double = 0.0,
     val errorMessage: String? = null,
-    val isSaving: Boolean = false
+    val currentUserId: String = ""
 )
 
 /**
@@ -50,26 +54,24 @@ data class ExpenseUiState(
 data class AddExpenseUiState(
     val amount: String = "",
     val description: String = "",
-    val selectedCategory: String = AppConstants.DEFAULT_EXPENSE_CATEGORIES.first(),
+    val categories: List<Category> = emptyList(),
+    val selectedCategory: Category? = null,
     val selectedDate: Long = System.currentTimeMillis(),
     val selectedTime: String = "",
     val location: String = "",
     val notes: String = "",
-    val selectedPaymentMethod: String = AppConstants.DEFAULT_PAYMENT_METHODS.first(),
+    val selectedPaymentMethod: String = "Card",
     val receiptPath: String? = null,
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
     val isValidForm: Boolean = false
 )
 
-/**
- * Expense ViewModel
- * Manages expense data, adding new expenses, and filtering
- */
 @HiltViewModel
 class ExpenseViewModel @Inject constructor(
-    // Future: Inject repositories here
-    // private val expenseRepository: ExpenseRepository
+    private val authRepository: AuthRepository,
+    private val transactionRepository: TransactionRepository,
+    private val categoryRepository: CategoryRepository
 ) : ViewModel() {
 
     var uiState by mutableStateOf(ExpenseUiState())
@@ -79,65 +81,94 @@ class ExpenseViewModel @Inject constructor(
         private set
 
     init {
-        loadExpenses()
+        loadUserAndExpenses()
     }
 
-    /**
-     * Load all expenses from local storage
-     */
-    private fun loadExpenses() {
+    private fun loadUserAndExpenses() {
         viewModelScope.launch {
-            uiState = uiState.copy(isLoading = true)
-
-            // Simulate loading delay
-            delay(1000)
-
-            // Mock expense data
-            val expenses = listOf(
-                Expense("1", "Morning Coffee", 450.0, "Food & Dining", System.currentTimeMillis(), "9:30 AM", "Starbucks", null, "Card", null),
-                Expense("2", "Uber Ride", 280.0, "Transportation", System.currentTimeMillis() - 3600000, "8:15 AM", "Home to Office", null, "UPI", null),
-                Expense("3", "Grocery Shopping", 2340.0, "Shopping", System.currentTimeMillis() - 86400000, "6:45 PM", "BigBasket", "Weekly groceries", "Card", null),
-                Expense("4", "Movie Tickets", 800.0, "Entertainment", System.currentTimeMillis() - 86400000, "7:30 PM", "PVR Cinemas", "Avengers movie", "Card", null),
-                Expense("5", "Pharmacy", 650.0, "Health", System.currentTimeMillis() - 172800000, "2:15 PM", "Apollo Pharmacy", "Monthly medicines", "Cash", null),
-                Expense("6", "Restaurant Dinner", 1850.0, "Food & Dining", System.currentTimeMillis() - 172800000, "8:00 PM", "The Spice Route", "Dinner with friends", "Card", null),
-                Expense("7", "Petrol", 3500.0, "Transportation", System.currentTimeMillis() - 259200000, "4:30 PM", "HP Petrol Pump", "Full tank", "Card", null),
-                Expense("8", "Online Shopping", 4200.0, "Shopping", System.currentTimeMillis() - 259200000, "11:00 AM", "Amazon", "Electronics purchase", "Card", null),
-                Expense("9", "Salary Credit", 85000.0, "Income", System.currentTimeMillis() - 345600000, "12:00 PM", "Company", "Monthly salary", "Bank Transfer", null, true),
-                Expense("10", "Gym Membership", 2000.0, "Health", System.currentTimeMillis() - 345600000, "10:00 AM", "Fitness First", "Monthly membership", "UPI", null)
-            )
-
-            val totalExpenses = expenses.filter { !it.isIncome }.sumOf { it.amount }
-            val averageDaily = totalExpenses / 30 // Assuming 30 days
-
-            uiState = uiState.copy(
-                isLoading = false,
-                expenses = expenses,
-                filteredExpenses = expenses,
-                totalExpenses = totalExpenses,
-                averageDaily = averageDaily
+            authRepository.getCurrentUser().fold(
+                onSuccess = { user ->
+                    if (user != null) {
+                        uiState = uiState.copy(currentUserId = user.id)
+                        loadExpenses(user.id)
+                        loadCategories(user.id)
+                    } else {
+                        uiState = uiState.copy(
+                            isLoading = false,
+                            errorMessage = "User not found"
+                        )
+                    }
+                },
+                onFailure = { exception ->
+                    uiState = uiState.copy(
+                        isLoading = false,
+                        errorMessage = exception.message ?: "Failed to load user"
+                    )
+                }
             )
         }
     }
 
-    /**
-     * Search expenses by title or category
-     */
+    private suspend fun loadExpenses(userId: String) {
+        transactionRepository.getTransactionsByUser(userId).fold(
+            onSuccess = { transactions ->
+                val expenseItems = transactions.map { transaction ->
+                    ExpenseItem(
+                        id = transaction.id,
+                        title = transaction.title,
+                        amount = transaction.amount,
+                        category = transaction.category.name,
+                        date = transaction.transactionDate,
+                        time = formatTime(transaction.transactionDate),
+                        location = transaction.location,
+                        notes = transaction.description,
+                        paymentMethod = "Card", // Would come from transaction
+                        isIncome = transaction.type == TransactionType.INCOME
+                    )
+                }
+
+                val totalExpenses = expenseItems.filter { !it.isIncome }.sumOf { it.amount }
+                val averageDaily = if (expenseItems.isNotEmpty()) totalExpenses / 30 else 0.0
+
+                uiState = uiState.copy(
+                    isLoading = false,
+                    expenses = expenseItems,
+                    filteredExpenses = expenseItems,
+                    totalExpenses = totalExpenses,
+                    averageDaily = averageDaily
+                )
+            },
+            onFailure = { exception ->
+                uiState = uiState.copy(
+                    isLoading = false,
+                    errorMessage = exception.message ?: "Failed to load expenses"
+                )
+            }
+        )
+    }
+
+    private suspend fun loadCategories(userId: String) {
+        categoryRepository.getCategoriesByType(userId, TransactionType.EXPENSE).fold(
+            onSuccess = { categories ->
+                addExpenseState = addExpenseState.copy(
+                    categories = categories,
+                    selectedCategory = categories.firstOrNull()
+                )
+            },
+            onFailure = { /* Handle error silently */ }
+        )
+    }
+
     fun searchExpenses(query: String) {
         uiState = uiState.copy(searchQuery = query)
         filterExpenses()
     }
 
-    /**
-     * Filter expenses by category
-     */
     fun filterByCategory(category: String?) {
         uiState = uiState.copy(selectedCategory = category)
         filterExpenses()
     }
 
-    /**
-     * Apply filters to expense list
-     */
     private fun filterExpenses() {
         val filtered = uiState.expenses.filter { expense ->
             val matchesSearch = if (uiState.searchQuery.isBlank()) {
@@ -166,227 +197,136 @@ class ExpenseViewModel @Inject constructor(
         )
     }
 
-    /**
-     * Clear all filters
-     */
-    fun clearFilters() {
-        uiState = uiState.copy(
-            searchQuery = "",
-            selectedCategory = null,
-            filteredExpenses = uiState.expenses
-        )
-        filterExpenses()
-    }
-
-    // ========== Add Expense Functions ==========
-
-    /**
-     * Update amount in add expense form
-     */
+    // Add Expense Functions
     fun updateAmount(amount: String) {
         addExpenseState = addExpenseState.copy(amount = amount)
         validateForm()
     }
 
-    /**
-     * Update description in add expense form
-     */
     fun updateDescription(description: String) {
         addExpenseState = addExpenseState.copy(description = description)
         validateForm()
     }
 
-    /**
-     * Update selected category
-     */
-    fun updateCategory(category: String) {
+    fun updateCategory(category: Category) {
         addExpenseState = addExpenseState.copy(selectedCategory = category)
+        validateForm()
     }
 
-    /**
-     * Update selected date
-     */
     fun updateDate(date: Long) {
         addExpenseState = addExpenseState.copy(selectedDate = date)
     }
 
-    /**
-     * Update selected time
-     */
-    fun updateTime(time: String) {
-        addExpenseState = addExpenseState.copy(selectedTime = time)
-    }
-
-    /**
-     * Update location
-     */
     fun updateLocation(location: String) {
         addExpenseState = addExpenseState.copy(location = location)
     }
 
-    /**
-     * Update notes
-     */
     fun updateNotes(notes: String) {
         addExpenseState = addExpenseState.copy(notes = notes)
     }
 
-    /**
-     * Update payment method
-     */
     fun updatePaymentMethod(paymentMethod: String) {
         addExpenseState = addExpenseState.copy(selectedPaymentMethod = paymentMethod)
     }
 
-    /**
-     * Validate add expense form
-     */
     private fun validateForm() {
         val isValid = addExpenseState.amount.isNotBlank() &&
                 addExpenseState.description.isNotBlank() &&
                 addExpenseState.amount.toDoubleOrNull() != null &&
-                addExpenseState.amount.toDoubleOrNull()!! > 0
+                addExpenseState.amount.toDoubleOrNull()!! > 0 &&
+                addExpenseState.selectedCategory != null
 
         addExpenseState = addExpenseState.copy(isValidForm = isValid)
     }
 
-    /**
-     * Save new expense
-     */
-    fun saveExpense() {
-        if (!addExpenseState.isValidForm) return
+    fun saveExpense(onSuccess: () -> Unit) {
+        if (!addExpenseState.isValidForm || uiState.currentUserId.isEmpty()) return
 
         viewModelScope.launch {
             addExpenseState = addExpenseState.copy(isSaving = true)
 
-            // Simulate saving delay
-            delay(1500)
-
             try {
-                val newExpense = Expense(
-                    id = System.currentTimeMillis().toString(),
-                    title = addExpenseState.description,
+                val transaction = Transaction(
+                    id = UUID.randomUUID().toString(),
+                    userId = uiState.currentUserId,
+                    accountId = "", // Would be implemented later
                     amount = addExpenseState.amount.toDouble(),
-                    category = addExpenseState.selectedCategory,
-                    date = addExpenseState.selectedDate,
-                    time = addExpenseState.selectedTime,
+                    type = TransactionType.EXPENSE,
+                    category = addExpenseState.selectedCategory!!,
+                    title = addExpenseState.description,
+                    description = addExpenseState.notes.ifBlank { null },
                     location = addExpenseState.location.ifBlank { null },
-                    notes = addExpenseState.notes.ifBlank { null },
-                    paymentMethod = addExpenseState.selectedPaymentMethod,
-                    receiptPath = addExpenseState.receiptPath
+                    receiptUrl = addExpenseState.receiptPath,
+                    tags = emptyList(),
+                    transactionDate = addExpenseState.selectedDate,
+                    createdAt = System.currentTimeMillis(),
+                    updatedAt = System.currentTimeMillis()
                 )
 
-                // Add to existing list
-                val updatedExpenses = listOf(newExpense) + uiState.expenses
-                val totalExpenses = updatedExpenses.filter { !it.isIncome }.sumOf { it.amount }
-                val averageDaily = totalExpenses / 30
-
-                uiState = uiState.copy(
-                    expenses = updatedExpenses,
-                    filteredExpenses = updatedExpenses,
-                    totalExpenses = totalExpenses,
-                    averageDaily = averageDaily
+                transactionRepository.addTransaction(transaction).fold(
+                    onSuccess = {
+                        addExpenseState = AddExpenseUiState() // Reset form
+                        loadExpenses(uiState.currentUserId) // Refresh data
+                        onSuccess()
+                    },
+                    onFailure = { exception ->
+                        addExpenseState = addExpenseState.copy(
+                            isSaving = false,
+                            errorMessage = exception.message ?: "Failed to save expense"
+                        )
+                    }
                 )
-
-                // Reset form
-                resetAddExpenseForm()
-
             } catch (e: Exception) {
                 addExpenseState = addExpenseState.copy(
                     isSaving = false,
-                    errorMessage = "Failed to save expense. Please try again."
+                    errorMessage = "Failed to save expense"
                 )
             }
         }
     }
 
-    /**
-     * Reset add expense form
-     */
-    fun resetAddExpenseForm() {
-        addExpenseState = AddExpenseUiState()
-    }
-
-    /**
-     * Delete expense
-     */
     fun deleteExpense(expenseId: String) {
         viewModelScope.launch {
-            val updatedExpenses = uiState.expenses.filter { it.id != expenseId }
-            val totalExpenses = updatedExpenses.filter { !it.isIncome }.sumOf { it.amount }
-            val averageDaily = if (updatedExpenses.isNotEmpty()) totalExpenses / updatedExpenses.size else 0.0
-
-            uiState = uiState.copy(
-                expenses = updatedExpenses,
-                filteredExpenses = updatedExpenses,
-                totalExpenses = totalExpenses,
-                averageDaily = averageDaily
+            transactionRepository.deleteTransaction(expenseId).fold(
+                onSuccess = {
+                    if (uiState.currentUserId.isNotEmpty()) {
+                        loadExpenses(uiState.currentUserId)
+                    }
+                },
+                onFailure = { exception ->
+                    uiState = uiState.copy(
+                        errorMessage = exception.message ?: "Failed to delete expense"
+                    )
+                }
             )
         }
     }
 
-    /**
-     * Format amount for display
-     */
-    fun formatAmount(amount: Double): String {
-        return "₹${String.format("%,.0f", amount)}"
-    }
-
-    /**
-     * Get expenses grouped by date
-     */
-    fun getExpensesByDate(): Map<String, List<Expense>> {
-        return uiState.filteredExpenses.groupBy { expense ->
-            when {
-                isToday(expense.date) -> "Today"
-                isYesterday(expense.date) -> "Yesterday"
-                isThisWeek(expense.date) -> formatDate(expense.date)
-                else -> formatDate(expense.date)
+    fun resetAddExpenseForm() {
+        addExpenseState = AddExpenseUiState()
+        if (uiState.currentUserId.isNotEmpty()) {
+            // Fixed: Wrap in viewModelScope.launch since loadCategories is suspend
+            viewModelScope.launch {
+                loadCategories(uiState.currentUserId)
             }
         }
     }
 
-    /**
-     * Helper functions for date checking
-     */
-    private fun isToday(timestamp: Long): Boolean {
-        val today = java.util.Calendar.getInstance()
-        val date = java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
-        return today.get(java.util.Calendar.YEAR) == date.get(java.util.Calendar.YEAR) &&
-                today.get(java.util.Calendar.DAY_OF_YEAR) == date.get(java.util.Calendar.DAY_OF_YEAR)
+    private fun formatTime(timestamp: Long): String {
+        val date = Date(timestamp)
+        return java.text.SimpleDateFormat("HH:mm", Locale.getDefault()).format(date)
     }
 
-    private fun isYesterday(timestamp: Long): Boolean {
-        val yesterday = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, -1) }
-        val date = java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
-        return yesterday.get(java.util.Calendar.YEAR) == date.get(java.util.Calendar.YEAR) &&
-                yesterday.get(java.util.Calendar.DAY_OF_YEAR) == date.get(java.util.Calendar.DAY_OF_YEAR)
-    }
-
-    private fun isThisWeek(timestamp: Long): Boolean {
-        val today = java.util.Calendar.getInstance()
-        val date = java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
-        return today.get(java.util.Calendar.YEAR) == date.get(java.util.Calendar.YEAR) &&
-                today.get(java.util.Calendar.WEEK_OF_YEAR) == date.get(java.util.Calendar.WEEK_OF_YEAR)
-    }
-
-    private fun formatDate(timestamp: Long): String {
-        val formatter = java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault())
-        return formatter.format(java.util.Date(timestamp))
-    }
-
-    /**
-     * Refresh expense data
-     */
-    fun refreshData() {
-        loadExpenses()
-    }
-
-    /**
-     * Clear error messages
-     */
     fun clearError() {
         uiState = uiState.copy(errorMessage = null)
         addExpenseState = addExpenseState.copy(errorMessage = null)
+    }
+
+    fun refreshData() {
+        if (uiState.currentUserId.isNotEmpty()) {
+            viewModelScope.launch {
+                loadExpenses(uiState.currentUserId)
+            }
+        }
     }
 }

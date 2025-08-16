@@ -1,3 +1,5 @@
+// Path: app/src/main/java/in/syncboard/planmate/presentation/ui/screens/profile/ProfileScreen.kt
+
 package `in`.syncboard.planmate.presentation.ui.screens.profile
 
 import androidx.compose.foundation.background
@@ -17,6 +19,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import `in`.syncboard.planmate.presentation.ui.components.LoadingState
+import `in`.syncboard.planmate.presentation.ui.components.CustomTextField
+import `in`.syncboard.planmate.presentation.viewmodel.ProfileViewModel
 import `in`.syncboard.planmate.ui.theme.*
 
 /**
@@ -31,16 +37,24 @@ data class ProfileMenuItem(
 )
 
 /**
- * Profile Screen
- * Shows user profile information and app settings
+ * Profile Screen - Updated with real user data
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     onNavigateBack: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    viewModel: ProfileViewModel = hiltViewModel()
 ) {
+    val uiState = viewModel.uiState
+    val editState = viewModel.editProfileState
     var showLogoutDialog by remember { mutableStateOf(false) }
+
+    // Show loading state
+    if (uiState.isLoading) {
+        LoadingState(message = "Loading profile...")
+        return
+    }
 
     Scaffold(
         topBar = {
@@ -57,8 +71,10 @@ fun ProfileScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* Handle edit profile */ }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit")
+                    if (!editState.isEditing) {
+                        IconButton(onClick = { viewModel.startEditingProfile() }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit")
+                        }
                     }
                 }
             )
@@ -77,292 +93,257 @@ fun ProfileScreen(
 
             // Profile Header Card
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = CardLargeShape,
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color.Transparent
+                if (editState.isEditing) {
+                    EditProfileCard(
+                        editState = editState,
+                        onNameChanged = { viewModel.updateName(it) },
+                        onEmailChanged = { viewModel.updateEmail(it) },
+                        onPhoneChanged = { viewModel.updatePhone(it) },
+                        onSave = { viewModel.saveProfile() },
+                        onCancel = { viewModel.cancelEditing() }
                     )
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(Secondary500, Primary500)
-                                ),
-                                shape = CardLargeShape
-                            )
-                            .padding(24.dp)
+                } else {
+                    ProfileHeaderCard(
+                        user = uiState.currentUser,
+                        stats = uiState.userStats
+                    )
+                }
+            }
+
+            // Stats Cards (only show when not editing)
+            if (!editState.isEditing) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally
+                        // Total Expenses
+                        Card(
+                            modifier = Modifier.weight(1f),
+                            shape = CategoryCardShape,
+                            colors = CardDefaults.cardColors(
+                                containerColor = Primary50
+                            )
                         ) {
-                            // Profile Picture
-                            Box(
-                                modifier = Modifier
-                                    .size(80.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Person,
-                                    contentDescription = "Profile Picture",
-                                    modifier = Modifier.size(40.dp),
-                                    tint = Color.White
+                                Text(
+                                    text = uiState.userStats.totalExpenses.toString(),
+                                    style = MaterialTheme.typography.amountMedium,
+                                    color = Primary700,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Expenses",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Primary600
                                 )
                             }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // User Name
-                            Text(
-                                text = "John Doe",
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = Color.White,
-                                fontWeight = FontWeight.SemiBold
-                            )
-
-                            // Email
-                            Text(
-                                text = "john.doe@email.com",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color.White.copy(alpha = 0.8f)
-                            )
-
-                            // Member Since
-                            Text(
-                                text = "Member since January 2024",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.6f),
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
                         }
-                    }
-                }
-            }
 
-            // Stats Cards
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Total Expenses
-                    Card(
-                        modifier = Modifier.weight(1f),
-                        shape = CategoryCardShape,
-                        colors = CardDefaults.cardColors(
-                            containerColor = Primary50
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                        // Money Saved
+                        Card(
+                            modifier = Modifier.weight(1f),
+                            shape = CategoryCardShape,
+                            colors = CardDefaults.cardColors(
+                                containerColor = Tertiary50
+                            )
                         ) {
-                            Text(
-                                text = "142",
-                                style = MaterialTheme.typography.amountMedium,
-                                color = Primary700,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Expenses",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Primary600
-                            )
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "₹${String.format("%,.0f", uiState.userStats.moneySaved)}",
+                                    style = MaterialTheme.typography.amountMedium,
+                                    color = Tertiary700,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Saved",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Tertiary600
+                                )
+                            }
                         }
-                    }
 
-                    // Money Saved
-                    Card(
-                        modifier = Modifier.weight(1f),
-                        shape = CategoryCardShape,
-                        colors = CardDefaults.cardColors(
-                            containerColor = Tertiary50
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                        // Account Age
+                        Card(
+                            modifier = Modifier.weight(1f),
+                            shape = CategoryCardShape,
+                            colors = CardDefaults.cardColors(
+                                containerColor = Secondary50
+                            )
                         ) {
-                            Text(
-                                text = "₹89K",
-                                style = MaterialTheme.typography.amountMedium,
-                                color = Tertiary700,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Saved",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Tertiary600
-                            )
-                        }
-                    }
-
-                    // Goals Achieved
-                    Card(
-                        modifier = Modifier.weight(1f),
-                        shape = CategoryCardShape,
-                        colors = CardDefaults.cardColors(
-                            containerColor = Secondary50
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "8",
-                                style = MaterialTheme.typography.amountMedium,
-                                color = Secondary700,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Goals",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Secondary600
-                            )
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = uiState.userStats.accountAge,
+                                    style = MaterialTheme.typography.amountMedium,
+                                    color = Secondary700,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Member",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Secondary600
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            // Menu Items
-            item {
-                Text(
-                    text = "Account & Settings",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-
-            // Profile Menu Items
-            item {
-                val menuItems = listOf(
-                    ProfileMenuItem(
-                        icon = Icons.Default.Person,
-                        title = "Personal Information",
-                        subtitle = "Update your details and preferences",
-                        color = Primary500,
-                        onClick = { /* Handle personal info */ }
-                    ),
-                    ProfileMenuItem(
-                        icon = Icons.Default.CreditCard,
-                        title = "Payment Methods",
-                        subtitle = "Manage cards and payment accounts",
-                        color = Tertiary500,
-                        onClick = { /* Handle payment methods */ }
-                    ),
-                    ProfileMenuItem(
-                        icon = Icons.Default.TrendingUp,
-                        title = "Savings Goals",
-                        subtitle = "Track and manage your financial goals",
-                        color = Secondary500,
-                        onClick = { /* Handle savings goals */ }
-                    ),
-                    ProfileMenuItem(
-                        icon = Icons.Default.Notifications,
-                        title = "Notifications",
-                        subtitle = "Customize your alert preferences",
-                        color = Warning500,
-                        onClick = { /* Handle notifications */ }
-                    ),
-                    ProfileMenuItem(
-                        icon = Icons.Default.Security,
-                        title = "Security & Privacy",
-                        subtitle = "Manage your account security",
-                        color = Error500,
-                        onClick = { /* Handle security */ }
-                    ),
-                    ProfileMenuItem(
-                        icon = Icons.Default.Settings,
-                        title = "App Settings",
-                        subtitle = "Customize your app experience",
-                        color = Neutral70,
-                        onClick = { /* Handle app settings */ }
-                    )
-                )
-
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    menuItems.forEach { item ->
-                        ProfileMenuItemCard(item = item)
-                    }
-                }
-            }
-
-            // Support Section
-            item {
-                Text(
-                    text = "Support",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-
-            item {
-                val supportItems = listOf(
-                    ProfileMenuItem(
-                        icon = Icons.Default.Help,
-                        title = "Help & Support",
-                        subtitle = "Get help and contact support",
-                        color = Primary500,
-                        onClick = { /* Handle help */ }
-                    ),
-                    ProfileMenuItem(
-                        icon = Icons.Default.Feedback,
-                        title = "Send Feedback",
-                        subtitle = "Help us improve PlanMate",
-                        color = Tertiary500,
-                        onClick = { /* Handle feedback */ }
-                    ),
-                    ProfileMenuItem(
-                        icon = Icons.Default.Info,
-                        title = "About PlanMate",
-                        subtitle = "Version 1.0.0",
-                        color = Secondary500,
-                        onClick = { /* Handle about */ }
-                    )
-                )
-
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    supportItems.forEach { item ->
-                        ProfileMenuItemCard(item = item)
-                    }
-                }
-            }
-
-            // Logout Button
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-
-                OutlinedButton(
-                    onClick = { showLogoutDialog = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Error500
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Error500)
-                ) {
-                    Icon(
-                        Icons.Default.Logout,
-                        contentDescription = "Logout",
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
+                // Menu Items
+                item {
                     Text(
-                        "Sign Out",
-                        fontWeight = FontWeight.Medium
+                        text = "Account & Settings",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(top = 8.dp)
                     )
+                }
+
+                // Profile Menu Items
+                item {
+                    val menuItems = listOf(
+                        ProfileMenuItem(
+                            icon = Icons.Default.CreditCard,
+                            title = "Payment Methods",
+                            subtitle = "Manage cards and payment accounts",
+                            color = Tertiary500,
+                            onClick = { /* Handle payment methods */ }
+                        ),
+                        ProfileMenuItem(
+                            icon = Icons.Default.TrendingUp,
+                            title = "Financial Goals",
+                            subtitle = "Track and manage your financial goals",
+                            color = Secondary500,
+                            onClick = { /* Handle financial goals */ }
+                        ),
+                        ProfileMenuItem(
+                            icon = Icons.Default.Notifications,
+                            title = "Notifications",
+                            subtitle = "Customize your alert preferences",
+                            color = Warning500,
+                            onClick = { /* Handle notifications */ }
+                        ),
+                        ProfileMenuItem(
+                            icon = Icons.Default.Security,
+                            title = "Security & Privacy",
+                            subtitle = "Manage your account security",
+                            color = Error500,
+                            onClick = { /* Handle security */ }
+                        ),
+                        ProfileMenuItem(
+                            icon = Icons.Default.Settings,
+                            title = "App Settings",
+                            subtitle = "Customize your app experience",
+                            color = Neutral70,
+                            onClick = { /* Handle app settings */ }
+                        )
+                    )
+
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        menuItems.forEach { item ->
+                            ProfileMenuItemCard(item = item)
+                        }
+                    }
+                }
+
+                // Support Section
+                item {
+                    Text(
+                        text = "Support",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+
+                item {
+                    val supportItems = listOf(
+                        ProfileMenuItem(
+                            icon = Icons.Default.Help,
+                            title = "Help & Support",
+                            subtitle = "Get help and contact support",
+                            color = Primary500,
+                            onClick = { /* Handle help */ }
+                        ),
+                        ProfileMenuItem(
+                            icon = Icons.Default.Feedback,
+                            title = "Send Feedback",
+                            subtitle = "Help us improve PlanMate",
+                            color = Tertiary500,
+                            onClick = { /* Handle feedback */ }
+                        ),
+                        ProfileMenuItem(
+                            icon = Icons.Default.Info,
+                            title = "About PlanMate",
+                            subtitle = "Version 1.0.0",
+                            color = Secondary500,
+                            onClick = { /* Handle about */ }
+                        )
+                    )
+
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        supportItems.forEach { item ->
+                            ProfileMenuItemCard(item = item)
+                        }
+                    }
+                }
+
+                // Logout Button
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedButton(
+                        onClick = { showLogoutDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Error500
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Error500)
+                    ) {
+                        Icon(
+                            Icons.Default.Logout,
+                            contentDescription = "Logout",
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Sign Out",
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            // Error Message
+            if (uiState.errorMessage != null || editState.errorMessage != null) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Error50
+                        )
+                    ) {
+                        Text(
+                            text = uiState.errorMessage ?: editState.errorMessage ?: "",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Error700,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
                 }
             }
 
@@ -389,7 +370,9 @@ fun ProfileScreen(
                 TextButton(
                     onClick = {
                         showLogoutDialog = false
-                        onLogout()
+                        viewModel.logout {
+                            onLogout()
+                        }
                     }
                 ) {
                     Text(
@@ -405,6 +388,177 @@ fun ProfileScreen(
                 }
             }
         )
+    }
+}
+
+/**
+ * Profile Header Card Component
+ */
+@Composable
+private fun ProfileHeaderCard(
+    user: `in`.syncboard.planmate.domain.entity.User?,
+    stats: `in`.syncboard.planmate.presentation.viewmodel.ProfileStats,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = CardLargeShape,
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Transparent
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(Secondary500, Primary500)
+                    ),
+                    shape = CardLargeShape
+                )
+                .padding(24.dp)
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Profile Picture
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = user?.name?.firstOrNull()?.toString()?.uppercase() ?: "U",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // User Name
+                Text(
+                    text = user?.name ?: "User",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                // Email
+                Text(
+                    text = user?.email ?: "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.8f)
+                )
+
+                // Phone (if available)
+                user?.phoneNumber?.let { phone ->
+                    Text(
+                        text = phone,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.6f)
+                    )
+                }
+
+                // Member Since
+                Text(
+                    text = "Member for ${stats.accountAge}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Edit Profile Card Component
+ */
+@Composable
+private fun EditProfileCard(
+    editState: `in`.syncboard.planmate.presentation.viewmodel.EditProfileUiState,
+    onNameChanged: (String) -> Unit,
+    onEmailChanged: (String) -> Unit,
+    onPhoneChanged: (String) -> Unit,
+    onSave: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = CardLargeShape,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp)
+        ) {
+            Text(
+                text = "Edit Profile",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            CustomTextField(
+                value = editState.name,
+                onValueChange = onNameChanged,
+                label = "Name",
+                leadingIcon = Icons.Default.Person,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            CustomTextField(
+                value = editState.email,
+                onValueChange = onEmailChanged,
+                label = "Email",
+                leadingIcon = Icons.Default.Email,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            CustomTextField(
+                value = editState.phone,
+                onValueChange = onPhoneChanged,
+                label = "Phone Number",
+                leadingIcon = Icons.Default.Phone,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onCancel,
+                    modifier = Modifier.weight(1f),
+                    enabled = !editState.isSaving
+                ) {
+                    Text("Cancel")
+                }
+
+                Button(
+                    onClick = onSave,
+                    modifier = Modifier.weight(1f),
+                    enabled = !editState.isSaving && editState.name.isNotBlank() && editState.email.isNotBlank()
+                ) {
+                    Text(if (editState.isSaving) "Saving..." else "Save")
+                }
+            }
+        }
     }
 }
 

@@ -1,3 +1,5 @@
+// Path: app/src/main/java/in/syncboard/planmate/MainActivity.kt
+
 package `in`.syncboard.planmate
 
 import android.os.Bundle
@@ -9,16 +11,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
 import `in`.syncboard.planmate.presentation.navigation.PlanMateNavigation
+import `in`.syncboard.planmate.presentation.viewmodel.AuthViewModel
 import `in`.syncboard.planmate.ui.theme.PlanMateTheme
 
 /**
  * Main Activity - Entry point of the app
- *
- * @AndroidEntryPoint - Tells Hilt this Activity should have dependencies injected
- * This is the root of our app and sets up the navigation and theme
+ * Updated to integrate with authentication flow
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -42,8 +44,14 @@ class MainActivity : ComponentActivity() {
                     // Set up navigation controller
                     val navController = rememberNavController()
 
-                    // Start the navigation system
-                    PlanMateNavigation(navController = navController)
+                    // Get shared AuthViewModel
+                    val authViewModel: AuthViewModel = hiltViewModel()
+
+                    // Start the navigation system with authentication
+                    PlanMateNavigation(
+                        navController = navController,
+                        authViewModel = authViewModel
+                    )
                 }
             }
         }

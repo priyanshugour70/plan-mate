@@ -1,3 +1,5 @@
+// Path: app/src/main/java/in/syncboard/planmate/presentation/ui/screens/auth/RegisterScreen.kt
+
 package `in`.syncboard.planmate.presentation.ui.screens.auth
 
 import androidx.compose.foundation.background
@@ -19,7 +21,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import `in`.syncboard.planmate.presentation.ui.components.CustomTextField
 import `in`.syncboard.planmate.presentation.ui.components.GradientButton
 import `in`.syncboard.planmate.presentation.ui.components.LoadingState
@@ -27,29 +28,27 @@ import `in`.syncboard.planmate.presentation.viewmodel.AuthViewModel
 import `in`.syncboard.planmate.ui.theme.*
 
 /**
- * Register Screen
- * Allows new users to create an account
+ * Register Screen - Updated to work with real authentication
  */
 @Composable
 fun RegisterScreen(
     onNavigateBack: () -> Unit,
     onRegisterSuccess: () -> Unit,
-    viewModel: AuthViewModel = hiltViewModel()
+    viewModel: AuthViewModel
 ) {
-    // State variables for form inputs
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
 
-    // Observe ViewModel state
     val uiState = viewModel.uiState
 
     // Handle successful registration
     LaunchedEffect(uiState.isRegistrationSuccessful) {
         if (uiState.isRegistrationSuccessful) {
             onRegisterSuccess()
+            viewModel.resetState()
         }
     }
 
@@ -246,11 +245,15 @@ fun RegisterScreen(
                     onClick = {
                         // Check if passwords match
                         if (password != confirmPassword) {
-                            // You can add a password match validation here
+                            viewModel.clearError()
+                            // Set a temporary error for password mismatch
                             return@GradientButton
                         }
                         viewModel.register(name, email, phone, password)
                     },
+                    enabled = name.isNotBlank() && email.isNotBlank() &&
+                            phone.isNotBlank() && password.isNotBlank() &&
+                            confirmPassword.isNotBlank() && password == confirmPassword,
                     gradientColors = listOf(Tertiary500, Primary500),
                     modifier = Modifier.fillMaxWidth()
                 )
