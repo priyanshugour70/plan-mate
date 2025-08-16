@@ -1,25 +1,36 @@
-// Path: app/src/main/java/in/syncboard/planmate/presentation/ui/screens/reminder/ReminderScreen.kt
-
+// ReminderScreen.kt
 package `in`.syncboard.planmate.presentation.ui.screens.reminder
 
-import androidx.compose.foundation.background
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import `in`.syncboard.planmate.presentation.ui.components.LoadingState
+import `in`.syncboard.planmate.presentation.ui.components.GradientButton
+import `in`.syncboard.planmate.presentation.ui.components.CustomTextField
 import `in`.syncboard.planmate.presentation.viewmodel.ReminderViewModel
 import `in`.syncboard.planmate.presentation.viewmodel.ReminderItem
 import `in`.syncboard.planmate.presentation.viewmodel.NoteItem
@@ -28,7 +39,7 @@ import `in`.syncboard.planmate.domain.entity.ReminderCategory
 import `in`.syncboard.planmate.ui.theme.*
 
 /**
- * Reminder Screen - Updated with real data
+ * Reminder Screen with Modern UI
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,219 +59,128 @@ fun ReminderScreen(
         return
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "Reminders & Notes",
-                        fontWeight = FontWeight.SemiBold
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.surface,
+                        SurfaceContainer.copy(alpha = 0.5f)
                     )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            if (selectedTab == 0) {
-                                showAddReminderDialog = true
-                            } else {
-                                showAddNoteDialog = true
-                            }
-                        }
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "Add")
-                    }
-                }
+                )
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    if (selectedTab == 0) {
-                        showAddReminderDialog = true
-                    } else {
-                        showAddNoteDialog = true
+    ) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                ReminderTopBar(
+                    onNavigateBack = onNavigateBack,
+                    onActionClick = {
+                        if (selectedTab == 0) {
+                            showAddReminderDialog = true
+                        } else {
+                            showAddNoteDialog = true
+                        }
                     }
-                },
-                containerColor = Primary500,
-                contentColor = Color.White
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add")
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = {
+                        if (selectedTab == 0) {
+                            showAddReminderDialog = true
+                        } else {
+                            showAddNoteDialog = true
+                        }
+                    },
+                    containerColor = Primary500,
+                    contentColor = Color.White
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "Add",
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            // Quick Stats
-            Row(
+        ) { paddingValues ->
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    .fillMaxSize()
+                    .padding(paddingValues)
             ) {
-                // Pending Reminders
-                Card(
-                    modifier = Modifier.weight(1f),
-                    shape = CategoryCardShape,
-                    colors = CardDefaults.cardColors(
-                        containerColor = Warning50
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = uiState.pendingReminders.toString(),
-                            style = MaterialTheme.typography.amountMedium,
-                            color = Warning700,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Pending",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Warning600
-                        )
-                    }
-                }
+                // Quick Stats
+                ReminderStatsSection(
+                    pendingReminders = uiState.pendingReminders,
+                    completedReminders = uiState.completedReminders,
+                    totalNotes = uiState.totalNotes
+                )
 
-                // Completed Reminders
-                Card(
-                    modifier = Modifier.weight(1f),
-                    shape = CategoryCardShape,
-                    colors = CardDefaults.cardColors(
-                        containerColor = Tertiary50
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = uiState.completedReminders.toString(),
-                            style = MaterialTheme.typography.amountMedium,
-                            color = Tertiary700,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Completed",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Tertiary600
-                        )
-                    }
-                }
+                // Tab Row
+                ReminderTabRow(
+                    selectedTab = selectedTab,
+                    tabs = tabs,
+                    onTabSelected = { selectedTab = it }
+                )
 
-                // Total Notes
-                Card(
-                    modifier = Modifier.weight(1f),
-                    shape = CategoryCardShape,
-                    colors = CardDefaults.cardColors(
-                        containerColor = Primary50
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = uiState.totalNotes.toString(),
-                            style = MaterialTheme.typography.amountMedium,
-                            color = Primary700,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Notes",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Primary600
-                        )
-                    }
-                }
-            }
+                // Content based on selected tab
+                when (selectedTab) {
+                    0 -> {
+                        // Reminders Tab
+                        if (uiState.reminders.isEmpty()) {
+                            ReminderEmptyState()
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 20.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                item {
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                }
 
-            // Tab Row
-            TabRow(
-                selectedTabIndex = selectedTab,
-                modifier = Modifier.fillMaxWidth(),
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = Primary500
-            ) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        text = {
-                            Text(
-                                text = title,
-                                fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal
-                            )
-                        }
-                    )
-                }
-            }
+                                items(uiState.reminders) { reminder ->
+                                    ReminderCard(
+                                        reminder = reminder,
+                                        onToggleComplete = { viewModel.toggleReminderCompletion(reminder.id) },
+                                        onDelete = { viewModel.deleteReminder(reminder.id) }
+                                    )
+                                }
 
-            // Content based on selected tab
-            when (selectedTab) {
-                0 -> {
-                    // Reminders Tab
-                    if (uiState.reminders.isEmpty()) {
-                        EmptyRemindersContent()
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 20.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            item {
-                                Spacer(modifier = Modifier.height(16.dp))
-                            }
-
-                            items(uiState.reminders) { reminder ->
-                                ReminderCard(
-                                    reminder = reminder,
-                                    onToggleComplete = { viewModel.toggleReminderCompletion(reminder.id) },
-                                    onDelete = { viewModel.deleteReminder(reminder.id) }
-                                )
-                            }
-
-                            item {
-                                Spacer(modifier = Modifier.height(80.dp))
+                                item {
+                                    Spacer(modifier = Modifier.height(80.dp))
+                                }
                             }
                         }
                     }
-                }
-                1 -> {
-                    // Notes Tab
-                    if (uiState.notes.isEmpty()) {
-                        EmptyNotesContent()
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 20.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            item {
-                                Spacer(modifier = Modifier.height(16.dp))
-                            }
+                    1 -> {
+                        // Notes Tab
+                        if (uiState.notes.isEmpty()) {
+                            NoteEmptyState()
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 20.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                item {
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                }
 
-                            items(uiState.notes) { note ->
-                                NoteCard(
-                                    note = note,
-                                    onPin = { viewModel.pinNote(note.id) },
-                                    onDelete = { viewModel.deleteNote(note.id) }
-                                )
-                            }
+                                items(uiState.notes) { note ->
+                                    NoteCard(
+                                        note = note,
+                                        onPin = { viewModel.pinNote(note.id) },
+                                        onDelete = { viewModel.deleteNote(note.id) }
+                                    )
+                                }
 
-                            item {
-                                Spacer(modifier = Modifier.height(80.dp))
+                                item {
+                                    Spacer(modifier = Modifier.height(80.dp))
+                                }
                             }
                         }
                     }
@@ -310,6 +230,208 @@ fun ReminderScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReminderTopBar(
+    onNavigateBack: () -> Unit,
+    onActionClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(80.dp)
+    ) {
+        // Background with gradient
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(Primary500, Secondary500)
+                    )
+                )
+        )
+
+        // Content
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = onNavigateBack,
+                    modifier = Modifier
+                        .background(
+                            Color.White.copy(alpha = 0.1f),
+                            RoundedCornerShape(12.dp)
+                        )
+                ) {
+                    Icon(
+                        Icons.Default.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color.White
+                    )
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    text = "Reminders & Notes",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            IconButton(
+                onClick = onActionClick,
+                modifier = Modifier
+                    .background(
+                        Color.White.copy(alpha = 0.1f),
+                        RoundedCornerShape(12.dp)
+                    )
+            ) {
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = "Add",
+                    tint = Color.White
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReminderStatsSection(
+    pendingReminders: Int,
+    completedReminders: Int,
+    totalNotes: Int
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Pending Reminders
+        StatsCard(
+            modifier = Modifier.weight(1f),
+            title = "Pending",
+            value = pendingReminders.toString(),
+            icon = Icons.Default.NotificationImportant,
+            color = Warning500
+        )
+
+        // Completed Reminders
+        StatsCard(
+            modifier = Modifier.weight(1f),
+            title = "Completed",
+            value = completedReminders.toString(),
+            icon = Icons.Default.CheckCircle,
+            color = Success500
+        )
+
+        // Total Notes
+        StatsCard(
+            modifier = Modifier.weight(1f),
+            title = "Notes",
+            value = totalNotes.toString(),
+            icon = Icons.Default.Note,
+            color = Primary500
+        )
+    }
+}
+
+@Composable
+private fun StatsCard(
+    modifier: Modifier = Modifier,
+    title: String,
+    value: String,
+    icon: ImageVector,
+    color: Color
+) {
+    Card(
+        modifier = modifier.height(90.dp),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            color.copy(alpha = 0.1f),
+                            color.copy(alpha = 0.05f)
+                        )
+                    )
+                )
+                .padding(16.dp)
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = color,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = color.copy(alpha = 0.8f),
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReminderTabRow(
+    selectedTab: Int,
+    tabs: List<String>,
+    onTabSelected: (Int) -> Unit
+) {
+    TabRow(
+        selectedTabIndex = selectedTab,
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = Primary500,
+        indicator = { tabPositions ->
+            TabRowDefaults.Indicator(
+                Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                color = Primary500,
+                height = 3.dp
+            )
+        }
+    ) {
+        tabs.forEachIndexed { index, title ->
+            Tab(
+                selected = selectedTab == index,
+                onClick = { onTabSelected(index) },
+                text = {
+                    Text(
+                        text = title,
+                        fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Medium,
+                        color = if (selectedTab == index) Primary600 else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            )
+        }
+    }
+}
+
 /**
  * Reminder Card Component
  */
@@ -324,27 +446,49 @@ private fun ReminderCard(
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = CategoryCardShape,
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (reminder.isCompleted) Tertiary50 else MaterialTheme.colorScheme.surface
-        )
+            containerColor = if (reminder.isCompleted) Success50 else MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Completion Checkbox
-            Checkbox(
-                checked = reminder.isCompleted,
-                onCheckedChange = { onToggleComplete() },
-                colors = CheckboxDefaults.colors(
-                    checkedColor = Tertiary500
-                )
-            )
+            // Completion Checkbox with animation
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .background(
+                        if (reminder.isCompleted) Success500 else Color.Transparent,
+                        CircleShape
+                    )
+                    .border(
+                        2.dp,
+                        if (reminder.isCompleted) Success500 else MaterialTheme.colorScheme.outline,
+                        CircleShape
+                    )
+                    .clickable { onToggleComplete() },
+                contentAlignment = Alignment.Center
+            ){
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = reminder.isCompleted,
+                    enter = scaleIn() + fadeIn(),
+                    exit = scaleOut() + fadeOut()
+                ) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = "Completed",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(16.dp))
 
             // Content
             Column(
@@ -353,36 +497,56 @@ private fun ReminderCard(
                 Text(
                     text = reminder.title,
                     style = MaterialTheme.typography.titleMedium,
-                    color = if (reminder.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                    textDecoration = if (reminder.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
-                    fontWeight = FontWeight.Medium
+                    color = if (reminder.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.onSurface,
+                    textDecoration = if (reminder.isCompleted) TextDecoration.LineThrough
+                    else TextDecoration.None,
+                    fontWeight = FontWeight.Bold
                 )
+
+                if (reminder.description?.isNotEmpty() == true) {
+                    Text(
+                        text = reminder.description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // Time
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Secondary100
                     ) {
-                        Icon(
-                            Icons.Default.AccessTime,
-                            contentDescription = "Time",
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = reminder.time,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.AccessTime,
+                                contentDescription = "Time",
+                                modifier = Modifier.size(12.dp),
+                                tint = Secondary700
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = reminder.time,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Secondary700,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
 
                     // Priority Badge
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(8.dp),
                         color = getPriorityColor(reminder.priority).copy(alpha = 0.1f)
                     ) {
                         Text(
@@ -390,7 +554,7 @@ private fun ReminderCard(
                             style = MaterialTheme.typography.labelSmall,
                             color = getPriorityColor(reminder.priority),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Bold
                         )
                     }
 
@@ -405,11 +569,19 @@ private fun ReminderCard(
             }
 
             // Delete Button
-            IconButton(onClick = { showDeleteDialog = true }) {
+            IconButton(
+                onClick = { showDeleteDialog = true },
+                modifier = Modifier
+                    .background(
+                        Error50,
+                        RoundedCornerShape(8.dp)
+                    )
+            ) {
                 Icon(
                     Icons.Default.Delete,
                     contentDescription = "Delete",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = Error500,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
@@ -454,15 +626,16 @@ private fun NoteCard(
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = CategoryCardShape,
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = note.color
-        )
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(20.dp)
         ) {
             // Header
             Row(
@@ -472,54 +645,75 @@ private fun NoteCard(
             ) {
                 Text(
                     text = note.title,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
                 )
 
                 Row {
                     IconButton(
                         onClick = onPin,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(
+                                if (note.isPinned) Warning100 else MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                                RoundedCornerShape(8.dp)
+                            )
                     ) {
                         Icon(
                             if (note.isPinned) Icons.Default.Star else Icons.Default.StarBorder,
                             contentDescription = "Pin",
-                            modifier = Modifier.size(16.dp),
-                            tint = if (note.isPinned) Warning500 else MaterialTheme.colorScheme.onSurfaceVariant
+                            modifier = Modifier.size(18.dp),
+                            tint = if (note.isPinned) Warning600 else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
+                    Spacer(modifier = Modifier.width(8.dp))
+
                     IconButton(
                         onClick = { showDeleteDialog = true },
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(
+                                Error50,
+                                RoundedCornerShape(8.dp)
+                            )
                     ) {
                         Icon(
                             Icons.Default.Delete,
                             contentDescription = "Delete",
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            modifier = Modifier.size(18.dp),
+                            tint = Error500
                         )
                     }
                 }
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
             // Content
             Text(
                 text = note.content,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(vertical = 8.dp),
-                maxLines = 3
+                lineHeight = 24.sp
             )
 
+            Spacer(modifier = Modifier.height(12.dp))
+
             // Created time
-            Text(
-                text = note.createdAt,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-            )
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+            ) {
+                Text(
+                    text = note.createdAt,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
         }
     }
 
@@ -548,68 +742,126 @@ private fun NoteCard(
     }
 }
 
-// Helper functions and dialogs
+// Empty state components
 @Composable
-private fun EmptyRemindersContent() {
+private fun ReminderEmptyState() {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(32.dp)
+            modifier = Modifier.padding(40.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.NotificationsNone,
-                contentDescription = "No reminders",
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+            Box {
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .blur(16.dp)
+                        .background(
+                            Primary500.copy(alpha = 0.3f),
+                            CircleShape
+                        )
+                )
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(Primary100, Primary50)
+                            ),
+                            shape = CircleShape
+                        )
+                        .zIndex(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.NotificationsNone,
+                        contentDescription = "No reminders",
+                        modifier = Modifier.size(40.dp),
+                        tint = Primary600
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
             Text(
                 text = "No reminders yet",
                 style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold
             )
+
             Spacer(modifier = Modifier.height(8.dp))
+
             Text(
                 text = "Create your first reminder to stay organized",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
         }
     }
 }
 
 @Composable
-private fun EmptyNotesContent() {
+private fun NoteEmptyState() {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(32.dp)
+            modifier = Modifier.padding(40.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.Note,
-                contentDescription = "No notes",
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+            Box {
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .blur(16.dp)
+                        .background(
+                            Secondary500.copy(alpha = 0.3f),
+                            CircleShape
+                        )
+                )
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(Secondary100, Secondary50)
+                            ),
+                            shape = CircleShape
+                        )
+                        .zIndex(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Note,
+                        contentDescription = "No notes",
+                        modifier = Modifier.size(40.dp),
+                        tint = Secondary600
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
             Text(
                 text = "No notes yet",
                 style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold
             )
+
             Spacer(modifier = Modifier.height(8.dp))
+
             Text(
                 text = "Create your first note to capture your thoughts",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
         }
     }
@@ -629,49 +881,56 @@ private fun AddReminderDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Reminder") },
+        title = {
+            Text(
+                "Add Reminder",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+        },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                OutlinedTextField(
+                CustomTextField(
                     value = uiState.title,
                     onValueChange = onTitleChanged,
-                    label = { Text("Title") },
-                    modifier = Modifier.fillMaxWidth()
+                    label = "Title",
+                    leadingIcon = Icons.Default.Title
                 )
 
-                OutlinedTextField(
+                CustomTextField(
                     value = uiState.description,
                     onValueChange = onDescriptionChanged,
-                    label = { Text("Description (Optional)") },
-                    modifier = Modifier.fillMaxWidth()
+                    label = "Description (Optional)",
+                    leadingIcon = Icons.Default.Description
                 )
 
-                OutlinedTextField(
+                CustomTextField(
                     value = uiState.selectedTime,
                     onValueChange = onTimeChanged,
-                    label = { Text("Time (HH:MM)") },
-                    placeholder = { Text("14:30") },
-                    modifier = Modifier.fillMaxWidth()
+                    label = "Time (HH:MM)",
+                    placeholder = "14:30",
+                    leadingIcon = Icons.Default.AccessTime
                 )
 
                 if (uiState.errorMessage != null) {
                     Text(
                         text = uiState.errorMessage,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
+                        color = Error500
                     )
                 }
             }
         },
         confirmButton = {
-            TextButton(
+            GradientButton(
+                text = if (uiState.isSaving) "Saving..." else "Save",
                 onClick = onSave,
-                enabled = uiState.isValidForm && !uiState.isSaving
-            ) {
-                Text(if (uiState.isSaving) "Saving..." else "Save")
-            }
+                enabled = uiState.isValidForm && !uiState.isSaving,
+                loading = uiState.isSaving,
+                modifier = Modifier.width(120.dp).height(40.dp)
+            )
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
@@ -693,16 +952,22 @@ private fun AddNoteDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Note") },
+        title = {
+            Text(
+                "Add Note",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+        },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                OutlinedTextField(
+                CustomTextField(
                     value = uiState.title,
                     onValueChange = onTitleChanged,
-                    label = { Text("Title") },
-                    modifier = Modifier.fillMaxWidth()
+                    label = "Title",
+                    leadingIcon = Icons.Default.Title
                 )
 
                 OutlinedTextField(
@@ -710,25 +975,27 @@ private fun AddNoteDialog(
                     onValueChange = onContentChanged,
                     label = { Text("Content") },
                     modifier = Modifier.fillMaxWidth(),
-                    minLines = 3
+                    minLines = 3,
+                    shape = RoundedCornerShape(12.dp)
                 )
 
                 if (uiState.errorMessage != null) {
                     Text(
                         text = uiState.errorMessage,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
+                        color = Error500
                     )
                 }
             }
         },
         confirmButton = {
-            TextButton(
+            GradientButton(
+                text = if (uiState.isSaving) "Saving..." else "Save",
                 onClick = onSave,
-                enabled = uiState.isValidForm && !uiState.isSaving
-            ) {
-                Text(if (uiState.isSaving) "Saving..." else "Save")
-            }
+                enabled = uiState.isValidForm && !uiState.isSaving,
+                loading = uiState.isSaving,
+                modifier = Modifier.width(120.dp).height(40.dp)
+            )
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
@@ -738,7 +1005,7 @@ private fun AddNoteDialog(
     )
 }
 
-private fun getPriorityColor(priority: ReminderPriority): androidx.compose.ui.graphics.Color {
+private fun getPriorityColor(priority: ReminderPriority): Color {
     return when (priority) {
         ReminderPriority.HIGH -> Error500
         ReminderPriority.MEDIUM -> Warning500
@@ -746,7 +1013,7 @@ private fun getPriorityColor(priority: ReminderPriority): androidx.compose.ui.gr
     }
 }
 
-private fun getCategoryIcon(category: ReminderCategory): androidx.compose.ui.graphics.vector.ImageVector {
+private fun getCategoryIcon(category: ReminderCategory): ImageVector {
     return when (category) {
         ReminderCategory.BILLS -> Icons.Default.Receipt
         ReminderCategory.SHOPPING -> Icons.Default.ShoppingBag

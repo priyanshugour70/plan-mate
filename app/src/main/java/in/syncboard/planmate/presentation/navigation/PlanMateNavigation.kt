@@ -1,5 +1,4 @@
-// Path: app/src/main/java/in/syncboard/planmate/presentation/navigation/PlanMateNavigation.kt
-
+// PlanMateNavigation.kt
 package `in`.syncboard.planmate.presentation.navigation
 
 import androidx.compose.runtime.Composable
@@ -172,6 +171,9 @@ fun PlanMateNavigation(
                 },
                 onNavigateToAddExpense = {
                     navController.navigate(PlanMateDestinations.ADD_EXPENSE)
+                },
+                onNavigateToAddReminder = {
+                    navController.navigate(PlanMateDestinations.REMINDERS)
                 }
             )
         }
