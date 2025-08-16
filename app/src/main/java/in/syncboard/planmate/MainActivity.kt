@@ -5,43 +5,47 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.core.view.WindowCompat
+import androidx.navigation.compose.rememberNavController
+import dagger.hilt.android.AndroidEntryPoint
+import `in`.syncboard.planmate.presentation.navigation.PlanMateNavigation
 import `in`.syncboard.planmate.ui.theme.PlanMateTheme
 
+/**
+ * Main Activity - Entry point of the app
+ *
+ * @AndroidEntryPoint - Tells Hilt this Activity should have dependencies injected
+ * This is the root of our app and sets up the navigation and theme
+ */
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Enable edge-to-edge display (full screen)
         enableEdgeToEdge()
+
+        // Make status bar and navigation bar transparent
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
         setContent {
+            // Apply our custom Material 3 theme
             PlanMateTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                // Create a surface container for the entire app
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    // Set up navigation controller
+                    val navController = rememberNavController()
+
+                    // Start the navigation system
+                    PlanMateNavigation(navController = navController)
                 }
             }
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    PlanMateTheme {
-        Greeting("Android")
     }
 }
