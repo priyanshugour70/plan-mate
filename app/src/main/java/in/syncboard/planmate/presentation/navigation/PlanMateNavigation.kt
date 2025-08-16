@@ -16,6 +16,9 @@ import `in`.syncboard.planmate.presentation.ui.screens.dashboard.DashboardScreen
 import `in`.syncboard.planmate.presentation.ui.screens.budget.BudgetScreen
 import `in`.syncboard.planmate.presentation.ui.screens.expense.ExpenseListScreen
 import `in`.syncboard.planmate.presentation.ui.screens.expense.AddExpenseScreen
+import `in`.syncboard.planmate.presentation.ui.screens.category.CategoryScreen
+import `in`.syncboard.planmate.presentation.ui.screens.category.AddCategoryScreen
+import `in`.syncboard.planmate.presentation.ui.screens.category.CategoryDetailScreen
 import `in`.syncboard.planmate.presentation.ui.screens.profile.ProfileScreen
 import `in`.syncboard.planmate.presentation.ui.screens.reminder.ReminderScreen
 import `in`.syncboard.planmate.presentation.ui.screens.splash.SplashScreen
@@ -33,8 +36,14 @@ object PlanMateDestinations {
     const val BUDGET = "budget"
     const val EXPENSES = "expenses"
     const val ADD_EXPENSE = "add_expense"
+    const val CATEGORIES = "categories"
+    const val ADD_CATEGORY = "add_category"
+    const val CATEGORY_DETAIL = "category_detail/{categoryId}"
     const val PROFILE = "profile"
     const val REMINDERS = "reminders"
+
+    // Helper functions for parameterized routes
+    fun categoryDetail(categoryId: String) = "category_detail/$categoryId"
 }
 
 /**
@@ -141,6 +150,9 @@ fun PlanMateNavigation(
                 },
                 onNavigateToReminders = {
                     navController.navigate(PlanMateDestinations.REMINDERS)
+                },
+                onNavigateToCategories = {
+                    navController.navigate(PlanMateDestinations.CATEGORIES)
                 }
             )
         }
@@ -171,6 +183,46 @@ fun PlanMateNavigation(
                 },
                 onExpenseSaved = {
                     navController.popBackStack()
+                }
+            )
+        }
+
+        // Category Screens
+        composable(PlanMateDestinations.CATEGORIES) {
+            CategoryScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToAddCategory = {
+                    navController.navigate(PlanMateDestinations.ADD_CATEGORY)
+                },
+                onNavigateToCategoryDetail = { categoryId ->
+                    navController.navigate(PlanMateDestinations.categoryDetail(categoryId))
+                }
+            )
+        }
+
+        composable(PlanMateDestinations.ADD_CATEGORY) {
+            AddCategoryScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onCategorySaved = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(PlanMateDestinations.CATEGORY_DETAIL) { backStackEntry ->
+            val categoryId = backStackEntry.arguments?.getString("categoryId") ?: return@composable
+            CategoryDetailScreen(
+                categoryId = categoryId,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToSetBudget = { catId ->
+                    // Navigate to budget screen with category pre-selected
+                    navController.navigate(PlanMateDestinations.BUDGET)
                 }
             )
         }
